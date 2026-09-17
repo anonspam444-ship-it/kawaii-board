@@ -7,6 +7,8 @@ A wooden quest board split into two themed lists:
 
 Add and delete entries in either list; everything is persisted to Supabase
 (Postgres) through an Express API that holds the service-role key server-side.
+Anyone can read the board, but pinning and removing require a shared board
+passphrase.
 
 ```
 kawaii-board/
@@ -23,6 +25,7 @@ kawaii-board/
 | Frontend  | React 19 + Vite                           |
 | Backend   | Node.js + Express 5                        |
 | Database  | Supabase (Postgres)                       |
+| Auth      | Shared board passphrase (bearer token)    |
 | Styling   | Plain CSS (custom, no framework)          |
 | Fonts     | Baloo 2 / Nunito (worth) · Eater / IM Fell English (worst) |
 
@@ -52,6 +55,8 @@ npm run dev:client
 ```
 
 Open http://localhost:5173. Adds/deletes work in-memory (they reset on reload).
+Mock mode has no server to authenticate against, so the board is always
+editable and the unlock box is hidden.
 
 ### 3. Set up Supabase
 
@@ -74,8 +79,18 @@ Fill in `server/.env`:
 ```
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+BOARD_PASSWORD=a-long-random-passphrase
 PORT=3001
 ```
+
+Generate a passphrase with:
+
+```bash
+openssl rand -base64 24
+```
+
+`BOARD_PASSWORD` is **required** — the server refuses to start without it, so a
+deploy can't end up with open write routes by accident.
 
 > ⚠️ The service-role key bypasses RLS. It stays in `server/.env` (gitignored)
 > and is **never** sent to the browser. If `VITE_USE_MOCK` was set to `true`
@@ -103,17 +118,67 @@ same-origin requests during development.
 - Express uses the Supabase **service-role** client for all reads/writes.
 - RLS is enabled with **no public policies**, so the anon/public key can't
   read or write the table — the server is the only way in.
+- Writes require the board passphrase; reads are public by default.
+
+### Auth
+
+There are no user accounts — one passphrase guards the board.
+
+- It lives **only** in `server/.env` as `BOARD_PASSWORD`. It is never baked into
+  the client bundle: a `VITE_*` value would be readable by anyone who views
+  source, which is obscurity rather than auth.
+- Click **Unlock** on the board, type the passphrase, and the client stores it in
+  `localStorage` and sends it as `Authorization: Bearer <passphrase>`. While
+  locked, the board is read-only — no add form, no delete buttons.
+- The server compares SHA-256 digests with `crypto.timingSafeEqual`, so the
+  check is constant-time.
+- Wrong guesses are throttled per IP: 10 failures in 15 minutes, then `429`
+  with a `Retry-After`. The counter is in-memory, so it's per-process and
+  resets on restart — fine at this size, but put a real limiter in front if the
+  board ever gets popular.
+- A rejected passphrase is dropped from `localStorage`, so the UI falls back to
+  locked instead of retrying with a dead credential.
+
+| Env var                  | Default | Effect                                        |
+| ------------------------ | ------- | --------------------------------------------- |
+| `BOARD_PASSWORD`         | —       | Required. The passphrase; no default.         |
+| `REQUIRE_AUTH_FOR_READS` | `false` | `true` also gates `GET`, for a private board. |
+| `TRUST_PROXY`            | unset   | Set behind a reverse proxy (see below).       |
+
+> ⚠️ `cors()` is wide open. That's intentional and harmless here — a bearer
+> token isn't a cookie, so a browser won't attach it to another site's requests
+> and CORS wouldn't be the thing protecting you either way. Set an allowlist if
+> you'd rather not have other origins reading the public board.
 
 ### API
 
-| Method   | Route               | Body              | Returns             |
-| -------- | ------------------- | ----------------- | ------------------- |
-| `GET`    | `/api/entries`      | —                 | `Entry[]`           |
-| `POST`   | `/api/entries`      | `{ text, list }`  | created `Entry`     |
-| `DELETE` | `/api/entries/:id`  | —                 | `204 No Content`    |
-| `GET`    | `/api/health`       | —                 | `{ ok: true }`      |
+| Method   | Route               | Body              | Returns             | Auth                        |
+| -------- | ------------------- | ----------------- | ------------------- | --------------------------- |
+| `GET`    | `/api/entries`      | —                 | `Entry[]`           | none¹                       |
+| `POST`   | `/api/entries`      | `{ text, list }`  | created `Entry`     | **passphrase**              |
+| `DELETE` | `/api/entries/:id`  | —                 | `204 No Content`    | **passphrase**              |
+| `POST`   | `/api/session`      | —                 | `{ ok: true }`      | **passphrase**              |
+| `GET`    | `/api/health`       | —                 | `{ ok: true }`      | none                        |
 
-`list` must be `"worth"` or `"worst"`.
+¹ Unless `REQUIRE_AUTH_FOR_READS=true`.
+
+`POST /api/session` just validates a passphrase so the unlock box can report a
+bad one immediately rather than failing on the next pin. There is no
+server-side session; every request carries the token.
+
+`list` must be `"worth"` or `"worst"`, and `text` is capped at 200 characters.
+
+Authenticated requests look like:
+
+```bash
+curl -X POST http://localhost:3001/api/entries \
+  -H "Authorization: Bearer $BOARD_PASSWORD" \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"certified angel","list":"worth"}'
+```
+
+Failures: `401` with `WWW-Authenticate: Bearer` for a missing or wrong
+passphrase, `429` once throttled, `400` for invalid input.
 
 ```jsonc
 // Entry
@@ -140,8 +205,12 @@ same-origin requests during development.
   any static host (Netlify, Vercel, Cloudflare Pages, S3…). Set `VITE_API_BASE`
   to the deployed API origin at build time, or reverse-proxy `/api` to it.
 - **Server**: a standard Node app — `npm run start` (respects `PORT`). Deploy to
-  Render, Railway, Fly, a VM, etc. Set `SUPABASE_URL` and
-  `SUPABASE_SERVICE_ROLE_KEY` as environment variables.
+  Render, Railway, Fly, a VM, etc. Set `SUPABASE_URL`,
+  `SUPABASE_SERVICE_ROLE_KEY` and `BOARD_PASSWORD` as environment variables.
+  Set `TRUST_PROXY=1` behind a reverse proxy (most PaaS hosts) so the
+  failed-attempt throttle sees real client IPs — otherwise every request looks
+  like it came from the proxy and one bad guesser locks out everybody. Serve it
+  over HTTPS: the passphrase travels in a request header.
 
 ---
 
@@ -153,5 +222,8 @@ The code is intentionally small and data-driven:
   placeholders in `client/src/mockData.js`, add a `.column--<theme>` block in
   `client/src/styles/column.css`, and update the `list` check in `supabase.sql`
   and the `LISTS` array in `server/index.js`.
-- **Edit entries**: add a `PATCH /api/entries/:id` route and an edit affordance
-  in `Entry.jsx`.
+- **Edit entries**: add a `PATCH /api/entries/:id` route (behind `requireAuth`)
+  and an edit affordance in `Entry.jsx`.
+- **Real accounts**: swap `server/auth.js` for Supabase Auth JWT verification
+  and add a `user_id` column plus RLS policies. Only `requireAuth` and
+  `client/src/auth.js` would need to change.

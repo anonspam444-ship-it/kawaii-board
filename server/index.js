@@ -2,18 +2,38 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import { supabase } from './supabase.js'
+import { requireAuth, requireAuthForReads } from './auth.js'
 
 const app = express()
+
+// The brute-force throttle keys on req.ip, so behind a reverse proxy Express
+// must be told to read X-Forwarded-For — otherwise every request looks like it
+// came from the proxy and one bad guesser locks out everybody. Set
+// TRUST_PROXY=1 (hops) or a subnet when deploying behind one.
+if (process.env.TRUST_PROXY) {
+  const value = Number(process.env.TRUST_PROXY)
+  app.set('trust proxy', Number.isNaN(value) ? process.env.TRUST_PROXY : value)
+}
+
 app.use(cors())
 app.use(express.json())
 
 const LISTS = ['worth', 'worst']
+const MAX_TEXT = 200 // matches the client's input maxLength
 
-// Health check — handy for deploys / uptime pings.
+// Health check — handy for deploys / uptime pings. Deliberately unauthenticated
+// so uptime pingers don't need the passphrase; it reveals nothing.
 app.get('/api/health', (req, res) => res.json({ ok: true }))
 
-// GET /api/entries — all entries, oldest first.
-app.get('/api/entries', async (req, res) => {
+// Passphrase check for the client's unlock box: 200 if the bearer token is
+// good, 401 if not. Nothing to create or destroy — no server-side session, the
+// client just learns whether the passphrase it holds is worth keeping.
+app.post('/api/session', requireAuth, (req, res) => res.json({ ok: true }))
+
+// GET /api/entries — all entries, oldest first. Public unless
+// REQUIRE_AUTH_FOR_READS=true.
+const readGuards = requireAuthForReads ? [requireAuth] : []
+app.get('/api/entries', ...readGuards, async (req, res) => {
   const { data, error } = await supabase
     .from('entries')
     .select('*')
@@ -23,12 +43,15 @@ app.get('/api/entries', async (req, res) => {
   res.json(data)
 })
 
-// POST /api/entries — { text, list } → created row.
-app.post('/api/entries', async (req, res) => {
+// POST /api/entries — { text, list } → created row. Requires the passphrase.
+app.post('/api/entries', requireAuth, async (req, res) => {
   const { text, list } = req.body ?? {}
 
   if (typeof text !== 'string' || !text.trim()) {
     return res.status(400).json({ error: 'text is required' })
+  }
+  if (text.trim().length > MAX_TEXT) {
+    return res.status(400).json({ error: `text must be ${MAX_TEXT} characters or fewer` })
   }
   if (!LISTS.includes(list)) {
     return res.status(400).json({ error: `list must be one of: ${LISTS.join(', ')}` })
@@ -44,8 +67,8 @@ app.post('/api/entries', async (req, res) => {
   res.status(201).json(data)
 })
 
-// DELETE /api/entries/:id
-app.delete('/api/entries/:id', async (req, res) => {
+// DELETE /api/entries/:id — requires the passphrase.
+app.delete('/api/entries/:id', requireAuth, async (req, res) => {
   const { error } = await supabase.from('entries').delete().eq('id', req.params.id)
   if (error) return res.status(500).json({ error: error.message })
   res.status(204).end()
@@ -54,4 +77,7 @@ app.delete('/api/entries/:id', async (req, res) => {
 const port = process.env.PORT || 3001
 app.listen(port, () => {
   console.log(`[kawaii-board] API listening on http://localhost:${port}`)
+  console.log(
+    `[kawaii-board] auth: writes locked, reads ${requireAuthForReads ? 'locked' : 'public'}`,
+  )
 })

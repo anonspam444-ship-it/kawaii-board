@@ -3,14 +3,20 @@ import Entry from './Entry.jsx'
 import { PLACEHOLDERS } from '../mockData.js'
 import '../styles/column.css'
 
-export default function Column({ theme, title, entries, loading, onAdd, onDelete }) {
+export default function Column({ theme, title, entries, loading, canEdit, onAdd, onDelete }) {
   const examples = PLACEHOLDERS[theme] ?? []
 
   return (
     <section className={`column column--${theme}`}>
       <h2 className="column__title">{title}</h2>
 
-      <AddForm theme={theme} onAdd={onAdd} placeholders={examples} />
+      {canEdit ? (
+        <AddForm theme={theme} onAdd={onAdd} placeholders={examples} />
+      ) : (
+        <p className="column__locked">
+          {theme === 'worth' ? 'Unlock to pin.' : 'Unlock to nail.'}
+        </p>
+      )}
 
       <ul className="column__list">
         {loading && <li className="column__hint">Loading…</li>}
@@ -29,7 +35,7 @@ export default function Column({ theme, title, entries, loading, onAdd, onDelete
         )}
 
         {entries.map((e) => (
-          <Entry key={e.id} entry={e} theme={theme} onDelete={onDelete} />
+          <Entry key={e.id} entry={e} theme={theme} canEdit={canEdit} onDelete={onDelete} />
         ))}
       </ul>
     </section>

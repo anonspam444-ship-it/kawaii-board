@@ -61,6 +61,76 @@
   color: #d8b483;
 }
 
+/* ---- passphrase lock strip ---------------------------------------------- */
+.lock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.lock__status {
+  font-family: 'Baloo 2', system-ui, cursive;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d8b483;
+}
+
+.lock__status--open {
+  color: #b7e3a8;
+}
+
+.lock__input {
+  padding: 7px 11px;
+  min-width: 0;
+  width: min(230px, 60vw);
+  border: 2px solid var(--wood-dark);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: #2c1810;
+  background: #f4e7d2;
+}
+
+.lock__input:focus {
+  outline: 2px solid var(--wood-ink);
+  outline-offset: 1px;
+}
+
+.lock__btn {
+  padding: 7px 14px;
+  border: 2px solid var(--wood-dark);
+  border-radius: 8px;
+  font-family: 'Baloo 2', system-ui, cursive;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  color: var(--wood-dark);
+  background: linear-gradient(180deg, #e8cfa4, #c9a878);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  transition: transform 0.08s ease;
+}
+
+.lock__btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.lock__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.lock__btn--quiet {
+  background: none;
+  color: #d8b483;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .board__error {
   margin: 0 0 16px;
   padding: 8px 12px;

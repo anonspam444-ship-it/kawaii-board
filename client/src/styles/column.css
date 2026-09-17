@@ -37,6 +37,16 @@
   font-style: italic;
 }
 
+.column__locked {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 2px dashed currentColor;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 0.9rem;
+  opacity: 0.65;
+}
+
 .column__examples {
   margin: 8px 0 0;
   padding-left: 18px;
