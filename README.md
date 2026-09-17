@@ -69,9 +69,18 @@ editable and the unlock box is hidden.
 2. Open **SQL Editor → New query**, paste the contents of
    [`supabase.sql`](./supabase.sql), and **Run**. This creates the `entries`
    table and enables Row Level Security.
-3. Grab your credentials from **Project Settings → API**:
-   - **Project URL** → `SUPABASE_URL`
-   - **service_role** secret key → `SUPABASE_SERVICE_ROLE_KEY`
+3. Grab two credentials. They live on **different** settings pages:
+   - **Project Settings → Data API → Project URL** → `SUPABASE_URL`
+     (it's `https://<project-ref>.supabase.co`, and the ref is also in the
+     dashboard's own address bar)
+   - **Project Settings → API Keys → "Secret keys"** → `SUPABASE_SECRET_KEY`
+     — an `sb_secret_...` value. Reveal or create one.
+
+   > Supabase renamed these: the old **`service_role`** JWT is now a **Secret
+   > key**, and **`anon`** is now **Publishable**. Take the *secret* one — it
+   > bypasses RLS, which is what this server needs. The publishable key is
+   > never used here. Older `service_role` keys under "Legacy API keys" work
+   > too, and `SUPABASE_SERVICE_ROLE_KEY` is still accepted as a variable name.
 
 ### 4. Configure the server
 
@@ -83,7 +92,7 @@ Fill in `server/.env`:
 
 ```
 SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_SECRET_KEY=sb_secret_your-secret-key
 BOARD_PASSWORD=a-long-random-passphrase
 PORT=3001
 ```
@@ -97,7 +106,7 @@ openssl rand -base64 24
 `BOARD_PASSWORD` is **required** — the server refuses to start without it, so a
 deploy can't end up with open write routes by accident.
 
-> ⚠️ The service-role key bypasses RLS. It stays in `server/.env` (gitignored)
+> ⚠️ The secret key bypasses RLS. It stays in `server/.env` (gitignored)
 > and is **never** sent to the browser. If `VITE_USE_MOCK` was set to `true`
 > earlier, set it back to `false` (or remove `client/.env`) so the client talks
 > to the real API.
@@ -120,7 +129,8 @@ same-origin requests during development.
 
 - The browser calls the Express API (`/api/entries`); it never touches Supabase
   directly.
-- Express uses the Supabase **service-role** client for all reads/writes.
+- Express uses the Supabase **secret key** for all reads/writes, so it can
+  bypass RLS.
 - RLS is enabled with **no public policies**, so the anon/public key can't
   read or write the table — the server is the only way in.
 - Writes require the board passphrase; reads are public by default.
@@ -228,7 +238,7 @@ current limits rather than trusting this file.
 3. Render dashboard → **New → Blueprint** → pick the repo. [`render.yaml`](./render.yaml)
    sets the build, the start command, `NODE_VERSION=22` and `TRUST_PROXY=1`.
 4. Render prompts for the three secrets it deliberately does not store in the
-   repo: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `BOARD_PASSWORD`.
+   repo: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `BOARD_PASSWORD`.
 5. Deploy. The board is at `https://<name>.onrender.com`; click **Unlock** and
    enter the passphrase.
 
@@ -244,7 +254,7 @@ Two free-tier behaviours worth knowing:
 ### Deploying anywhere else
 
 Any Node host works: build, then run `npm run start` with `SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY` and `BOARD_PASSWORD` set, plus `TRUST_PROXY=1` if
+`SUPABASE_SECRET_KEY` and `BOARD_PASSWORD` set, plus `TRUST_PROXY=1` if
 there's a proxy in front (without it every request appears to come from the
 proxy and one bad guesser throttles everybody). Serve it over HTTPS — the
 passphrase travels in a request header.
