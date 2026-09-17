@@ -1,0 +1,267 @@
+/* ============================================================
+   Column shell (shared) + the two themes: worth / worst.
+   ============================================================ */
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-height: 440px;
+  padding: clamp(14px, 2.5vw, 24px);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 30px rgba(0, 0, 0, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.column__title {
+  margin: 0 0 16px;
+  text-align: center;
+}
+
+.column__list {
+  flex: 1;
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.column__hint,
+.column__empty {
+  opacity: 0.8;
+}
+
+.column__empty {
+  font-style: italic;
+}
+
+.column__examples {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.column__examples li {
+  margin: 3px 0;
+}
+
+/* ---- entries (shared shape) --------------------------------------------- */
+.entry {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.entry__text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.entry__delete {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.entry__delete:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+/* ---- add form (shared shape) -------------------------------------------- */
+.add-form {
+  display: flex;
+  gap: 8px;
+}
+
+.add-form__input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.add-form__input:focus {
+  outline: none;
+}
+
+.add-form__btn {
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.08s ease;
+}
+
+.add-form__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ============================================================
+   WORTH — kawaii / cute
+   ============================================================ */
+.column--worth {
+  color: var(--worth-ink);
+  border: 3px solid #ffc7dd;
+  background:
+    radial-gradient(circle at 20% 8%, #ffe3ee, transparent 60%),
+    linear-gradient(180deg, var(--worth-cream), var(--worth-bg));
+}
+
+.column--worth .column__title {
+  font-family: 'Baloo 2', system-ui, cursive;
+  font-weight: 800;
+  font-size: clamp(1.5rem, 4vw, 2.2rem);
+  color: var(--worth-pink-deep);
+  text-shadow: 0 2px 0 #fff, 0 3px 6px rgba(232, 79, 140, 0.25);
+}
+
+.column--worth .add-form__input {
+  background: #fff;
+  border-color: #ffcfe0;
+  color: var(--worth-ink);
+}
+
+.column--worth .add-form__input::placeholder {
+  color: #d59bb4;
+}
+
+.column--worth .add-form__input:focus {
+  border-color: var(--worth-pink);
+}
+
+.column--worth .add-form__btn {
+  background: linear-gradient(180deg, #ffb0d0, #ff87ba);
+  color: #fff;
+  box-shadow: 0 3px 0 #e84f8c;
+}
+
+.column--worth .add-form__btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #e84f8c;
+}
+
+/* sticker cards */
+.entry--worth {
+  border-radius: 14px;
+  background: #fff;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 600;
+  box-shadow:
+    0 3px 0 #ffd0e2,
+    0 6px 12px rgba(232, 79, 140, 0.18);
+}
+
+.entry--worth .entry__pin {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #ff87ba 60%, #e84f8c);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.entry--worth .entry__delete {
+  color: #e84f8c;
+}
+
+/* ============================================================
+   WORST — horror
+   ============================================================ */
+.column--worst {
+  color: var(--worst-ash);
+  border: 3px solid #2c1a17;
+  background:
+    radial-gradient(circle at 80% 0%, rgba(120, 10, 10, 0.35), transparent 55%),
+    linear-gradient(180deg, #221715, var(--worst-char));
+}
+
+.column--worst .column__title {
+  font-family: 'Eater', system-ui, cursive;
+  font-size: clamp(1.6rem, 4.5vw, 2.4rem);
+  letter-spacing: 0.02em;
+  color: var(--worst-blood-bright);
+  text-shadow: 0 0 12px rgba(160, 18, 18, 0.8), 0 2px 3px #000;
+}
+
+.column--worst .add-form__input {
+  background: #120d0c;
+  border-color: #3a1414;
+  color: var(--worst-ash);
+  font-family: 'IM Fell English', serif;
+}
+
+.column--worst .add-form__input::placeholder {
+  color: #6e5a52;
+}
+
+.column--worst .add-form__input:focus {
+  border-color: var(--worst-blood-bright);
+}
+
+.column--worst .add-form__btn {
+  background: linear-gradient(180deg, #8f1010, #5e0808);
+  color: #f3d6d6;
+  font-family: 'IM Fell English', serif;
+  border: 1px solid #3a1414;
+  box-shadow: 0 3px 0 #2c0303;
+}
+
+.column--worst .add-form__btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #2c0303;
+}
+
+/* nailed wanted-poster scraps */
+.entry--worst {
+  border-radius: 2px;
+  background: linear-gradient(180deg, #efe6d4, #d9cbb2);
+  color: #2a1d12;
+  font-family: 'IM Fell English', serif;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+}
+
+.entry--worst:nth-child(odd) {
+  transform: rotate(-0.7deg);
+}
+
+.entry--worst:nth-child(even) {
+  transform: rotate(0.6deg);
+}
+
+.entry--worst .entry__pin {
+  /* iron nail head */
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #9a9a9a, #3a3a3a 70%, #111);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), inset 0 0 2px #000;
+}
+
+.entry--worst .entry__text {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.entry--worst .entry__delete {
+  color: #7a0d0d;
+}

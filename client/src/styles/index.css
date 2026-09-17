@@ -1,0 +1,46 @@
+:root {
+  /* wood frame */
+  --wood-dark: #3a2416;
+  --wood-mid: #6b4423;
+  --wood-light: #8a5a2b;
+  --wood-ink: #f4d9a6;
+
+  /* worth — kawaii */
+  --worth-bg: #fff1f5;
+  --worth-cream: #fff8f0;
+  --worth-pink: #ff9ec4;
+  --worth-pink-deep: #e84f8c;
+  --worth-ink: #6b4a5a;
+
+  /* worst — horror */
+  --worst-bg: #17110f;
+  --worst-char: #0c0a09;
+  --worst-blood: #a11212;
+  --worst-blood-bright: #e01b1b;
+  --worst-ash: #cbb8a8;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+  color: #2c1810;
+  background: radial-gradient(ellipse at top, #3a2416, #1c0e06 70%);
+  padding: clamp(12px, 3vw, 48px);
+}
+
+#root {
+  max-width: 1100px;
+  margin: 0 auto;
+}
