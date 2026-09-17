@@ -1,11 +1,11 @@
-# 🪧 kawaii-board — The Quest Board
+# 🪧 kawaii-board — WORTHLESS or NOXIST
 
 A wooden quest board split into two themed lists:
 
 - **Worth List** — a kawaii/cute wall of soft pastel pins and stickers.
 - **Worst List** — a charred horror board of blood-red, nailed-up wanted-poster scraps.
 
-Add and delete entries in either list; everything is persisted to Supabase
+Add, edit and delete entries in either list; everything is persisted to Supabase
 (Postgres) through an Express API that holds the service-role key server-side.
 Anyone can read the board, but pinning and removing require a shared board
 passphrase.
@@ -28,7 +28,7 @@ kawaii-board/
 | Database  | Supabase (Postgres)                       |
 | Auth      | Shared board passphrase (bearer token)    |
 | Styling   | Plain CSS (custom, no framework)          |
-| Fonts     | Baloo 2 / Nunito (worth) · Eater / IM Fell English (worst) |
+| Fonts     | Baloo 2 / Pacifico / Nunito (worth) · Eater / IM Fell English (worst) |
 
 ---
 
@@ -172,6 +172,7 @@ There are no user accounts — one passphrase guards the board.
 | -------- | ------------------- | ----------------- | ------------------- | --------------------------- |
 | `GET`    | `/api/entries`      | —                 | `Entry[]`           | none¹                       |
 | `POST`   | `/api/entries`      | `{ text, list }`  | created `Entry`     | **passphrase**              |
+| `PATCH`  | `/api/entries/:id`  | `{ text }`        | updated `Entry`     | **passphrase**              |
 | `DELETE` | `/api/entries/:id`  | —                 | `204 No Content`    | **passphrase**              |
 | `POST`   | `/api/session`      | —                 | `{ ok: true }`      | **passphrase**              |
 | `GET`    | `/api/health`       | —                 | `{ ok: true }`      | none                        |
@@ -193,8 +194,13 @@ curl -X POST http://localhost:3001/api/entries \
   -d '{"text":"certified angel","list":"worth"}'
 ```
 
+`PATCH` edits only the text — moving an entry between lists is a different
+gesture from renaming it, and nothing in the UI asks for it.
+
 Failures: `401` with `WWW-Authenticate: Bearer` for a missing or wrong
-passphrase, `429` once throttled, `400` for invalid input.
+passphrase, `429` once throttled, `400` for invalid input, `404` from `PATCH`
+and `DELETE` for an id that doesn't exist (including a malformed uuid, which
+Postgres rejects outright).
 
 ```jsonc
 // Entry
@@ -270,12 +276,13 @@ to the API's origin, upload `client/dist/` to any static host, and tighten
 
 The code is intentionally small and data-driven:
 
+- **Retheme a column heading**: the kawaii heading is one `font-family` in
+  `column.css` (`Pacifico`) plus a matching family in the Google Fonts `<link>`
+  in `index.html`. Swap both to change it.
 - **Add a list**: add an entry to `LISTS` in `client/src/App.jsx`, add its
   placeholders in `client/src/mockData.js`, add a `.column--<theme>` block in
   `client/src/styles/column.css`, and update the `list` check in `supabase.sql`
   and the `LISTS` array in `server/index.js`.
-- **Edit entries**: add a `PATCH /api/entries/:id` route (behind `requireAuth`)
-  and an edit affordance in `Entry.jsx`.
 - **Real accounts**: swap `server/auth.js` for Supabase Auth JWT verification
   and add a `user_id` column plus RLS policies. Only `requireAuth` and
   `client/src/auth.js` would need to change.

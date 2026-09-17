@@ -41,9 +41,10 @@
   margin: 0;
   font-family: 'Baloo 2', system-ui, cursive;
   font-weight: 800;
-  font-size: clamp(2rem, 6vw, 3.6rem);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  /* "WORTHLESS or NOXIST" is long, so it scales down harder than the old
+     title did. No text-transform: the lowercase "or" is deliberate. */
+  font-size: clamp(1.5rem, 5.2vw, 3.1rem);
+  letter-spacing: 0.04em;
   color: var(--wood-ink);
   text-shadow:
     0 1px 0 var(--wood-light),
@@ -52,14 +53,6 @@
     0 0 20px rgba(0, 0, 0, 0.5);
 }
 
-.board__subtitle {
-  margin: 8px 0 0;
-  font-family: 'Baloo 2', system-ui, cursive;
-  font-size: clamp(0.8rem, 2vw, 1.05rem);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #d8b483;
-}
 
 /* ---- passphrase lock strip ---------------------------------------------- */
 .lock {

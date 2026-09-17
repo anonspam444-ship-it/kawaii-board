@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import Column from './components/Column.jsx'
 import UnlockBar from './components/UnlockBar.jsx'
-import { getEntries, createEntry, deleteEntry, unlock, isMock } from './api.js'
+import { getEntries, createEntry, updateEntry, deleteEntry, unlock, isMock } from './api.js'
 import { clearToken, hasToken } from './auth.js'
 import './styles/board.css'
 
@@ -65,6 +65,22 @@ export default function App() {
     }
   }
 
+  async function handleEdit(id, text) {
+    setError(null)
+    const snapshot = entries
+    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, text } : e))) // optimistic
+    try {
+      const updated = await updateEntry(id, text)
+      // Trust the server's copy when it sends one (it trims the text).
+      if (updated) setEntries((prev) => prev.map((e) => (e.id === id ? updated : e)))
+    } catch (e) {
+      if (e.status === 401) setUnlocked(false)
+      setError(e.message)
+      setEntries(snapshot) // roll back on failure
+      throw e // Entry stays in edit mode so the change isn't lost
+    }
+  }
+
   async function handleDelete(id) {
     const snapshot = entries
     setEntries((prev) => prev.filter((e) => e.id !== id)) // optimistic
@@ -81,8 +97,7 @@ export default function App() {
     <div className="board">
       <div className="board__frame">
         <header className="board__header">
-          <h1 className="board__title">The Quest Board</h1>
-          <p className="board__subtitle">Pin the worthy · Nail the worst</p>
+          <h1 className="board__title">WORTHLESS or NOXIST</h1>
           {!isMock && (
             <UnlockBar unlocked={unlocked} onUnlock={handleUnlock} onLock={handleLock} />
           )}
@@ -101,6 +116,7 @@ export default function App() {
                 canEdit={unlocked}
                 entries={entries.filter((e) => e.list === l.key)}
                 onAdd={(text) => handleAdd(text, l.key)}
+                onEdit={handleEdit}
                 onDelete={handleDelete}
               />
             </Fragment>

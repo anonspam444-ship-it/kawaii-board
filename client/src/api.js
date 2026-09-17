@@ -28,6 +28,11 @@ const mockApi = {
     mem = [...mem, entry]
     return entry
   },
+  edit: async (id, text) => {
+    let updated = null
+    mem = mem.map((e) => (e.id === id ? (updated = { ...e, text }) : e))
+    return updated
+  },
   remove: async (id) => {
     mem = mem.filter((e) => e.id !== id)
   },
@@ -59,6 +64,11 @@ export const createEntry = (text, list) =>
   USE_MOCK
     ? mockApi.add(text, list)
     : entries('', { method: 'POST', body: JSON.stringify({ text, list }) })
+
+export const updateEntry = (id, text) =>
+  USE_MOCK
+    ? mockApi.edit(id, text)
+    : entries(`/${id}`, { method: 'PATCH', body: JSON.stringify({ text }) })
 
 export const deleteEntry = (id) =>
   USE_MOCK ? mockApi.remove(id) : entries(`/${id}`, { method: 'DELETE' })

@@ -3,7 +3,7 @@ import Entry from './Entry.jsx'
 import { PLACEHOLDERS } from '../mockData.js'
 import '../styles/column.css'
 
-export default function Column({ theme, title, entries, loading, canEdit, onAdd, onDelete }) {
+export default function Column({ theme, title, entries, loading, canEdit, onAdd, onEdit, onDelete }) {
   const examples = PLACEHOLDERS[theme] ?? []
 
   return (
@@ -35,7 +35,14 @@ export default function Column({ theme, title, entries, loading, canEdit, onAdd,
         )}
 
         {entries.map((e) => (
-          <Entry key={e.id} entry={e} theme={theme} canEdit={canEdit} onDelete={onDelete} />
+          <Entry
+            key={e.id}
+            entry={e}
+            theme={theme}
+            canEdit={canEdit}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         ))}
       </ul>
     </section>
