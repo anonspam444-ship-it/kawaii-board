@@ -1,0 +1,35 @@
+# Render blueprint — one free web service serving both the API and the built
+# client, so the whole board lives on a single origin.
+#
+#   Render dashboard → New → Blueprint → pick this repo.
+#
+# The three `sync: false` values are not in this file on purpose: Render will
+# prompt for them, and they must never be committed.
+services:
+  - type: web
+    name: kawaii-board
+    runtime: node
+    plan: free
+    # --include=dev because Render sets NODE_ENV=production, and a plain
+    # `npm install` would then skip devDependencies — which is where Vite
+    # lives, so the client build would fail.
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    envVars:
+      # .npmrc has engine-strict=true and the packages want Node >= 22.
+      - key: NODE_VERSION
+        value: "22"
+      # Render terminates TLS at a proxy, so Express must read X-Forwarded-For
+      # for the failed-passphrase throttle to see real client IPs.
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: BOARD_PASSWORD
+        sync: false
+      # "true" makes the board private (reading needs the passphrase too).
+      - key: REQUIRE_AUTH_FOR_READS
+        value: "false"

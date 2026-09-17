@@ -1,4 +1,6 @@
 import 'dotenv/config'
+import fs from 'node:fs'
+import path from 'node:path'
 import express from 'express'
 import cors from 'cors'
 import { supabase } from './supabase.js'
@@ -73,6 +75,26 @@ app.delete('/api/entries/:id', requireAuth, async (req, res) => {
   if (error) return res.status(500).json({ error: error.message })
   res.status(204).end()
 })
+
+// --- serve the built client, if it's there ----------------------------------
+// In production one process serves both the API and the static bundle, so the
+// whole board is a single deploy on a single origin: no CORS, and
+// VITE_API_BASE can stay blank because /api is same-origin. In development
+// this directory doesn't exist yet and Vite serves the client instead.
+const clientDist = path.resolve(import.meta.dirname, '../client/dist')
+
+if (fs.existsSync(path.join(clientDist, 'index.html'))) {
+  app.use(express.static(clientDist))
+
+  // SPA fallback — anything that isn't /api and isn't a real file is the app.
+  // Express 5 dropped string wildcards, hence the regex.
+  app.get(/^(?!\/api\/).*/, (req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'))
+  })
+  console.log('[kawaii-board] serving client from client/dist')
+} else {
+  console.log('[kawaii-board] no client build found — run `npm run build` (dev uses Vite)')
+}
 
 const port = process.env.PORT || 3001
 app.listen(port, () => {

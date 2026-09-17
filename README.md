@@ -15,6 +15,7 @@ kawaii-board/
 ├── client/        React frontend (Vite)
 ├── server/        Node/Express backend
 ├── supabase.sql   entries table + RLS
+├── render.yaml    one-service deploy blueprint
 └── package.json   root convenience scripts (npm workspaces)
 ```
 
@@ -50,9 +51,13 @@ You can review the whole design against in-memory mock data before setting up
 Supabase:
 
 ```bash
-cp client/.env.example client/.env      # then set VITE_USE_MOCK=true
+cp client/.env.example client/.env.development   # then set VITE_USE_MOCK=true
 npm run dev:client
 ```
+
+> Use `.env.development`, **not** `.env`. Vite loads `.env` for `vite build`
+> too, so a mock flag there would quietly ship a board full of fake data to
+> production. `.env.development` only applies to the dev server.
 
 Open http://localhost:5173. Adds/deletes work in-memory (they reset on reload).
 Mock mode has no server to authenticate against, so the board is always
@@ -199,18 +204,54 @@ passphrase, `429` once throttled, `400` for invalid input.
 
 ---
 
-## Deploying later
+## Deploying
 
-- **Client**: `npm run build` produces static assets in `client/dist/`. Host on
-  any static host (Netlify, Vercel, Cloudflare Pages, S3…). Set `VITE_API_BASE`
-  to the deployed API origin at build time, or reverse-proxy `/api` to it.
-- **Server**: a standard Node app — `npm run start` (respects `PORT`). Deploy to
-  Render, Railway, Fly, a VM, etc. Set `SUPABASE_URL`,
-  `SUPABASE_SERVICE_ROLE_KEY` and `BOARD_PASSWORD` as environment variables.
-  Set `TRUST_PROXY=1` behind a reverse proxy (most PaaS hosts) so the
-  failed-attempt throttle sees real client IPs — otherwise every request looks
-  like it came from the proxy and one bad guesser locks out everybody. Serve it
-  over HTTPS: the passphrase travels in a request header.
+`npm run start` serves **both** the API and the built client from one Node
+process, so the whole board is a single deploy on a single origin. No CORS to
+configure, and `VITE_API_BASE` stays blank because `/api` is same-origin.
+
+Locally, that production shape is:
+
+```bash
+npm run build
+npm run start            # http://localhost:3001 serves the board *and* the API
+```
+
+### Free hosting (Render + Supabase)
+
+Both have free tiers that fit this app. Free-tier terms change, so check the
+current limits rather than trusting this file.
+
+1. Set up Supabase as in **Quick start** above — the same project works for
+   production.
+2. Push this repo to GitHub.
+3. Render dashboard → **New → Blueprint** → pick the repo. [`render.yaml`](./render.yaml)
+   sets the build, the start command, `NODE_VERSION=22` and `TRUST_PROXY=1`.
+4. Render prompts for the three secrets it deliberately does not store in the
+   repo: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `BOARD_PASSWORD`.
+5. Deploy. The board is at `https://<name>.onrender.com`; click **Unlock** and
+   enter the passphrase.
+
+Two free-tier behaviours worth knowing:
+
+- **Render free services sleep** after ~15 minutes of no traffic. The first
+  request afterwards takes tens of seconds while it wakes. Fine for a personal
+  board; upgrade, or split the client onto Cloudflare Pages / Netlify (so the
+  UI loads instantly and only writes wait), if it bothers you.
+- **Supabase free projects pause** after a stretch of inactivity, and need a
+  click in the dashboard to come back. A board you actually use stays awake.
+
+### Deploying anywhere else
+
+Any Node host works: build, then run `npm run start` with `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY` and `BOARD_PASSWORD` set, plus `TRUST_PROXY=1` if
+there's a proxy in front (without it every request appears to come from the
+proxy and one bad guesser throttles everybody). Serve it over HTTPS — the
+passphrase travels in a request header.
+
+To host the client separately instead, `npm run build` with `VITE_API_BASE` set
+to the API's origin, upload `client/dist/` to any static host, and tighten
+`cors()` on the server to that origin.
 
 ---
 
