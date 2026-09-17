@@ -72,7 +72,8 @@ editable and the unlock box is hidden.
 3. Grab two credentials. They live on **different** settings pages:
    - **Project Settings → Data API → Project URL** → `SUPABASE_URL`
      (it's `https://<project-ref>.supabase.co`, and the ref is also in the
-     dashboard's own address bar)
+     dashboard's own address bar). If you copy the REST endpoint
+     (`…supabase.co/rest/v1/`) instead, that's fine — the server trims it.
    - **Project Settings → API Keys → "Secret keys"** → `SUPABASE_SECRET_KEY`
      — an `sb_secret_...` value. Reveal or create one.
 

@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
-const url = process.env.SUPABASE_URL
+// The dashboard shows the REST endpoint (…supabase.co/rest/v1/) more
+// prominently than the bare project URL, and supabase-js wants the latter — it
+// appends /rest/v1 itself, so pasting the REST form sends every query to
+// /rest/v1/rest/v1/... and 404s. Accept either.
+const url = (process.env.SUPABASE_URL ?? '').trim().replace(/\/+$/, '').replace(/\/rest\/v1$/, '')
 // SUPABASE_SECRET_KEY is the current name (an `sb_secret_...` key). Supabase
 // renamed these: the old service_role JWT is now a "Secret key", and anon is
 // now "Publishable". The legacy variable still works so existing .env files
