@@ -1,12 +1,19 @@
 import crypto from 'node:crypto'
 
-// Shared-passphrase auth. There are no user accounts on this board — one
-// passphrase, held here in the server env and typed by whoever is pinning
+// Shared-passphrase auth. There are no user accounts on this board — a
+// passphrase is held here in the server env and typed by whoever is pinning
 // things. It is never baked into the client bundle (a VITE_* value would be
 // readable by anyone who views source, which is obscurity rather than auth).
-const password = process.env.BOARD_PASSWORD
+//
+// There are two independent credentials:
+//   BOARD_PASSWORD   pinning/nailing/editing entries
+//   STREAK_PASSWORD  the no-contact counter, which belongs to one person
+// They are deliberately separate: everyone with the board passphrase should
+// not thereby be able to reset somebody else's streak.
 
-if (!password) {
+const boardPassword = process.env.BOARD_PASSWORD
+
+if (!boardPassword) {
   console.error(
     '\n[kawaii-board] Missing BOARD_PASSWORD.\n' +
       'The write API refuses to start without it, so a deploy can never end up\n' +
@@ -16,20 +23,87 @@ if (!password) {
   process.exit(1)
 }
 
-if (password.length < 12) {
+if (boardPassword.length < 12) {
   console.warn(
     '[kawaii-board] BOARD_PASSWORD is shorter than 12 characters. ' +
       'Consider `openssl rand -base64 24`.',
   )
 }
 
-// Compare fixed-length digests: timingSafeEqual throws on length mismatch, and
-// hashing first keeps the comparison constant-time regardless of input length.
-const expected = crypto.createHash('sha256').update(password).digest()
+// The streak counter has a default on purpose: it is a personal toy for one
+// person, and she was given this passphrase directly. Unlike BOARD_PASSWORD
+// there is no hard failure without it — but the default is public (it is in
+// this file, in a public repo), so a real deploy should override it.
+const STREAK_DEFAULT = 'barkdog69'
+const streakPassword = process.env.STREAK_PASSWORD || STREAK_DEFAULT
 
-function matches(given) {
-  const got = crypto.createHash('sha256').update(given).digest()
-  return crypto.timingSafeEqual(expected, got)
+// --- brute-force throttle ---------------------------------------------------
+// A single guessable passphrase with unlimited attempts is weak, so failures
+// are counted per IP, per realm — a wrong streak guess must not lock someone
+// out of pinning entries. In-memory and therefore per-process: it resets on
+// restart and doesn't coordinate across replicas, which is the right trade for
+// a board this size. Put a real limiter in front if this ever gets popular.
+const WINDOW_MS = 15 * 60 * 1000
+const MAX_FAILURES = 10
+const failures = new Map() // "realm|ip" -> { count, expires }
+
+function sweep(now) {
+  for (const [key, record] of failures) {
+    if (record.expires <= now) failures.delete(key)
+  }
+}
+
+function throttled(key, now) {
+  const record = failures.get(key)
+  if (!record || record.expires <= now) return 0
+  return record.count >= MAX_FAILURES ? Math.ceil((record.expires - now) / 1000) : 0
+}
+
+function recordFailure(key, now) {
+  const record = failures.get(key)
+  if (!record || record.expires <= now) {
+    failures.set(key, { count: 1, expires: now + WINDOW_MS })
+  } else {
+    record.count += 1
+  }
+  if (failures.size > 1000) sweep(now)
+}
+
+// --- guard factory ----------------------------------------------------------
+// `readCredential` pulls the secret out of the request; each realm uses its own
+// header so a browser holding both can send both at once without them fighting
+// over Authorization.
+function makeGuard({ realm, password, readCredential, challenge, missing, wrong }) {
+  // Compare fixed-length digests: timingSafeEqual throws on length mismatch,
+  // and hashing first keeps the comparison constant-time regardless of input.
+  const expected = crypto.createHash('sha256').update(password).digest()
+
+  const matches = (given) =>
+    crypto.timingSafeEqual(expected, crypto.createHash('sha256').update(given).digest())
+
+  return function guard(req, res, next) {
+    const now = Date.now()
+    const key = `${realm}|${req.ip ?? 'unknown'}`
+
+    const retryAfter = throttled(key, now)
+    if (retryAfter) {
+      res.set('Retry-After', String(retryAfter))
+      return res.status(429).json({ error: 'Too many failed attempts. Try again later.' })
+    }
+
+    const token = readCredential(req)
+    if (token && matches(token)) return next()
+
+    // Only wrong guesses count against the limit; a missing header is just an
+    // un-unlocked browser asking politely.
+    if (token) recordFailure(key, now)
+
+    // Only the bearer realm advertises a challenge; X-Streak-Key is not an
+    // HTTP auth scheme, and claiming it is would invite a browser login box
+    // that can't produce the right header.
+    if (challenge) res.set('WWW-Authenticate', challenge)
+    res.status(401).json({ error: token ? wrong : missing })
+  }
 }
 
 function bearer(req) {
@@ -37,57 +111,26 @@ function bearer(req) {
   return match ? match[1] : null
 }
 
-// --- brute-force throttle ---------------------------------------------------
-// A single guessable passphrase with unlimited attempts is weak, so failures
-// are counted per IP. In-memory and therefore per-process: it resets on restart
-// and doesn't coordinate across replicas, which is the right trade for a board
-// this size. Put a real limiter in front if this ever gets popular.
-const WINDOW_MS = 15 * 60 * 1000
-const MAX_FAILURES = 10
-const failures = new Map() // ip -> { count, expires }
+export const requireAuth = makeGuard({
+  realm: 'board',
+  password: boardPassword,
+  readCredential: bearer,
+  challenge: 'Bearer realm="kawaii-board"',
+  missing: 'Passphrase required.',
+  wrong: 'Wrong passphrase.',
+})
 
-function sweep(now) {
-  for (const [ip, record] of failures) {
-    if (record.expires <= now) failures.delete(ip)
-  }
-}
+export const requireStreakAuth = makeGuard({
+  realm: 'streak',
+  password: streakPassword,
+  readCredential: (req) => (req.get('x-streak-key') ?? '').trim() || null,
+  missing: 'Streak passphrase required.',
+  wrong: "That's not the passphrase.",
+})
 
-function throttled(ip, now) {
-  const record = failures.get(ip)
-  if (!record || record.expires <= now) return 0
-  return record.count >= MAX_FAILURES ? Math.ceil((record.expires - now) / 1000) : 0
-}
-
-function recordFailure(ip, now) {
-  const record = failures.get(ip)
-  if (!record || record.expires <= now) {
-    failures.set(ip, { count: 1, expires: now + WINDOW_MS })
-  } else {
-    record.count += 1
-  }
-  if (failures.size > 1000) sweep(now)
-}
-
-export function requireAuth(req, res, next) {
-  const now = Date.now()
-  const ip = req.ip ?? 'unknown'
-
-  const retryAfter = throttled(ip, now)
-  if (retryAfter) {
-    res.set('Retry-After', String(retryAfter))
-    return res.status(429).json({ error: 'Too many failed attempts. Try again later.' })
-  }
-
-  const token = bearer(req)
-  if (token && matches(token)) return next()
-
-  // Only wrong guesses count against the limit; a missing header is just an
-  // un-unlocked browser asking politely.
-  if (token) recordFailure(ip, now)
-
-  res.set('WWW-Authenticate', 'Bearer realm="kawaii-board"')
-  res.status(401).json({ error: token ? 'Wrong passphrase.' : 'Passphrase required.' })
-}
+// True when the streak is still using the passphrase baked into this file.
+// Only used for a startup warning — never sent to the client.
+export const streakUsesDefaultPassword = streakPassword === STREAK_DEFAULT
 
 // Reads are public by default: the board stays viewable by anyone with the URL,
 // while pinning and removing require the passphrase. Set

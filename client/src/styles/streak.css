@@ -1,0 +1,496 @@
+/* ============================================================
+   The no-contact counter.
+
+   Same horror palette as the Worst List so it reads as part of the board,
+   but it's a panel rather than a column: a big number on the left, the
+   day's question on the right.
+   ============================================================ */
+
+.streak {
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 clamp(16px, 3vw, 26px);
+  padding: clamp(18px, 3.2vw, 28px) clamp(16px, 3.4vw, 32px);
+  border: 3px solid #2c1a17;
+  border-radius: 12px;
+  color: var(--worst-ash);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(150, 12, 12, 0.4), transparent 58%),
+    radial-gradient(circle at 88% 110%, rgba(90, 8, 8, 0.45), transparent 60%),
+    linear-gradient(180deg, #211513, #0b0908);
+  box-shadow:
+    inset 0 0 40px rgba(0, 0, 0, 0.7),
+    0 8px 24px rgba(0, 0, 0, 0.55);
+}
+
+/* ---- claw slashes -------------------------------------------------------- */
+/* Three raked gashes across the panel. They sit under the content and are
+   dim enough not to fight it. */
+.streak__claws {
+  position: absolute;
+  inset: -20% -10%;
+  pointer-events: none;
+}
+
+.streak__claws span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  transform: rotate(14deg);
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(224, 27, 27, 0.75) 22%,
+    rgba(255, 90, 90, 0.9) 50%,
+    rgba(160, 18, 18, 0.7) 76%,
+    transparent
+  );
+  box-shadow:
+    0 0 10px rgba(224, 27, 27, 0.75),
+    0 0 26px rgba(160, 18, 18, 0.5);
+  opacity: 0.55;
+}
+
+.streak__claws span:nth-child(1) {
+  left: 30%;
+  width: 4px;
+}
+
+.streak__claws span:nth-child(2) {
+  left: 37%;
+  width: 2px;
+  opacity: 0.38;
+}
+
+.streak__claws span:nth-child(3) {
+  left: 43%;
+  width: 3px;
+  opacity: 0.45;
+}
+
+/* ---- blood seeping in along the top edge --------------------------------- */
+.streak__seep {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.streak__seep span {
+  position: absolute;
+  top: 0;
+  border-radius: 0 0 40% 40%;
+  background: linear-gradient(180deg, #7e0c0c, #4a0505 70%, rgba(60, 4, 4, 0));
+  box-shadow: 0 0 10px rgba(140, 12, 12, 0.5);
+}
+
+.streak__seep span:nth-child(1) {
+  left: 6%;
+  width: 13px;
+  height: 26px;
+}
+.streak__seep span:nth-child(2) {
+  left: 21%;
+  width: 8px;
+  height: 44px;
+}
+.streak__seep span:nth-child(3) {
+  left: 52%;
+  width: 16px;
+  height: 20px;
+}
+.streak__seep span:nth-child(4) {
+  left: 68%;
+  width: 7px;
+  height: 36px;
+}
+.streak__seep span:nth-child(5) {
+  left: 88%;
+  width: 11px;
+  height: 29px;
+}
+
+/* A stain behind the number, so it isn't sitting on clean background. */
+.streak__splatter {
+  position: absolute;
+  left: clamp(-30px, 2vw, 40px);
+  bottom: -40px;
+  width: clamp(200px, 32vw, 320px);
+  height: clamp(200px, 32vw, 320px);
+  pointer-events: none;
+  opacity: 0.34;
+  background:
+    radial-gradient(circle at 34% 40%, rgba(150, 10, 10, 0.75), transparent 46%),
+    radial-gradient(circle at 60% 28%, rgba(120, 8, 8, 0.6), transparent 26%),
+    radial-gradient(circle at 24% 66%, rgba(120, 8, 8, 0.55), transparent 22%),
+    radial-gradient(circle at 70% 70%, rgba(100, 6, 6, 0.5), transparent 20%);
+  filter: blur(1px);
+}
+
+/* ---- the knife ----------------------------------------------------------- */
+.streak__knife {
+  position: absolute;
+  top: -10px;
+  right: clamp(10px, 3.5vw, 44px);
+  height: clamp(104px, 17vw, 158px);
+  width: auto;
+  pointer-events: none;
+  transform: rotate(13deg);
+  transform-origin: top center;
+  filter: drop-shadow(-3px 6px 6px rgba(0, 0, 0, 0.65));
+}
+
+/* The drop lets go, falls, and another forms. */
+.streak__knife-drop {
+  animation: streak-knife-drip 4.2s ease-in infinite;
+}
+
+@keyframes streak-knife-drip {
+  0%,
+  55% {
+    transform: translateY(0) scale(0.4);
+    opacity: 0;
+  }
+  65% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(26px) scale(0.8);
+    opacity: 0;
+  }
+}
+
+/* ---- layout -------------------------------------------------------------- */
+.streak__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: clamp(18px, 4vw, 44px);
+  /* Reserve the corner the knife hangs in, so buttons never run under it. */
+  padding-right: clamp(46px, 9vw, 104px);
+}
+
+.streak__count-block {
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.streak__controls {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+/* ---- the number ---------------------------------------------------------- */
+.streak__eyebrow {
+  margin: 0;
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: clamp(0.95rem, 2.5vw, 1.3rem);
+  letter-spacing: 0.05em;
+  color: #b09289;
+}
+
+.streak__count {
+  position: relative;
+  margin: 2px 0 0;
+  line-height: 0.95;
+}
+
+/* Deliberately NOT the Eater face used for the headings: its dripping
+   letterforms turn "12" into something closer to "I2", and this number is the
+   whole point of the panel. The horror comes from the colour, glow, drips and
+   claw marks instead — the digits themselves stay instantly readable. */
+.streak__count-num {
+  display: inline-block;
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(3.6rem, 13.5vw, 7rem);
+  letter-spacing: -0.02em;
+  color: var(--worst-blood-bright);
+  text-shadow:
+    0 0 18px rgba(224, 27, 27, 0.85),
+    0 0 46px rgba(160, 18, 18, 0.6),
+    0 2px 0 #5e0808,
+    0 4px 6px #000;
+  /* Keyed on the value in the component, so this replays on every change. */
+  animation: streak-strike 0.5s ease-out;
+}
+
+@keyframes streak-strike {
+  0% {
+    transform: scale(1.22);
+    filter: brightness(1.9);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.streak__count-loading {
+  font-family: 'Nunito', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(3.6rem, 13.5vw, 7rem);
+  color: #4a2a28;
+}
+
+/* blood running off the digits */
+.streak__drip {
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  width: 70%;
+  height: 0;
+  transform: translateX(-50%);
+}
+
+.streak__drip span {
+  position: absolute;
+  top: 0;
+  width: 3px;
+  border-radius: 0 0 3px 3px;
+  background: linear-gradient(180deg, var(--worst-blood-bright), rgba(90, 4, 4, 0));
+  animation: streak-drip 3.6s ease-in infinite;
+}
+
+.streak__drip span:nth-child(1) {
+  left: 16%;
+  animation-delay: 0s;
+}
+
+.streak__drip span:nth-child(2) {
+  left: 48%;
+  width: 2px;
+  animation-delay: 1.3s;
+}
+
+.streak__drip span:nth-child(3) {
+  left: 77%;
+  animation-delay: 2.4s;
+}
+
+@keyframes streak-drip {
+  0% {
+    height: 0;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  70% {
+    height: 16px;
+    opacity: 0.9;
+  }
+  100% {
+    height: 22px;
+    opacity: 0;
+  }
+}
+
+/* Clear of the drips above, which run ~22px past the bottom of the digits. */
+.streak__best {
+  margin: 28px 0 0;
+  font-family: 'IM Fell English', serif;
+  font-size: clamp(0.95rem, 2.2vw, 1.15rem);
+  letter-spacing: 0.06em;
+  color: #a08880;
+}
+
+.streak__best strong {
+  color: #cbb8a8;
+}
+
+/* ---- the question + buttons ---------------------------------------------- */
+.streak__prompt {
+  margin: 0;
+  font-family: 'Eater', system-ui, cursive;
+  font-size: clamp(1rem, 2.8vw, 1.5rem);
+  line-height: 1.3;
+  color: #e8d5cd;
+  text-shadow: 0 0 10px rgba(160, 18, 18, 0.6), 0 2px 3px #000;
+}
+
+.streak__prompt--done {
+  font-family: 'IM Fell English', serif;
+  font-size: clamp(0.9rem, 2.2vw, 1.1rem);
+  color: #9fd08a;
+  text-shadow: 0 0 10px rgba(80, 160, 60, 0.35);
+}
+
+.streak__hint {
+  margin: -4px 0 0;
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 0.85rem;
+  color: #8d736b;
+}
+
+.streak__row,
+.streak__form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.streak__warn {
+  font-family: 'IM Fell English', serif;
+  font-size: 0.88rem;
+  color: #ffb3b3;
+}
+
+.streak__input {
+  padding: 8px 11px;
+  min-width: 0;
+  width: min(190px, 52vw);
+  border: 2px solid #3a1414;
+  border-radius: 6px;
+  font-family: 'IM Fell English', serif;
+  font-size: 0.95rem;
+  color: var(--worst-ash);
+  background: #120d0c;
+}
+
+.streak__input::placeholder {
+  color: #6e5a52;
+}
+
+.streak__input:focus {
+  outline: none;
+  border-color: var(--worst-blood-bright);
+}
+
+.streak__btn {
+  padding: 9px 15px;
+  border: 1px solid #3a1414;
+  border-radius: 6px;
+  font-family: 'IM Fell English', serif;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  cursor: pointer;
+  color: #f3d6d6;
+  background: linear-gradient(180deg, #4a1010, #2a0707);
+  box-shadow: 0 3px 0 #1a0303;
+  transition: transform 0.08s ease, filter 0.15s ease;
+}
+
+.streak__btn:hover:not(:disabled) {
+  filter: brightness(1.25);
+}
+
+.streak__btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #1a0303;
+}
+
+.streak__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The good answer. Green, because it should feel different from the red one
+   under the thumb — this is the button she wants to be pressing. */
+.streak__btn--strong {
+  color: #eafbe4;
+  background: linear-gradient(180deg, #2f6b26, #17400f);
+  border-color: #16350f;
+  box-shadow: 0 3px 0 #0c2308;
+}
+
+.streak__btn--strong:active:not(:disabled) {
+  box-shadow: 0 1px 0 #0c2308;
+}
+
+.streak__btn--kill {
+  background: linear-gradient(180deg, #8f1010, #5e0808);
+}
+
+/* The locked state is just this one button, so it carries the panel. */
+.streak__btn--big {
+  padding: 14px 28px;
+  font-size: clamp(1.05rem, 2.6vw, 1.35rem);
+  letter-spacing: 0.02em;
+}
+
+.streak__btn--quiet {
+  color: #9c8078;
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.streak__btn--quiet:active:not(:disabled) {
+  box-shadow: none;
+}
+
+/* ---- motion preferences -------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .streak__count-num,
+  .streak__drip span,
+  .streak__knife-drop {
+    animation: none;
+  }
+
+  .streak__drip {
+    display: none;
+  }
+}
+
+/* ---- narrow screens ------------------------------------------------------ */
+@media (max-width: 720px) {
+  .streak__inner {
+    flex-direction: column;
+    text-align: center;
+    /* Stacked and centred, so the reserved corner would just push it askew. */
+    padding-right: 0;
+  }
+
+  .streak__knife {
+    right: 2px;
+    opacity: 0.8;
+  }
+
+  .streak__splatter {
+    left: 50%;
+    bottom: auto;
+    top: 6%;
+    transform: translateX(-50%);
+    opacity: 0.4;
+  }
+
+  .streak__controls {
+    align-items: center;
+  }
+
+  .streak__row,
+  .streak__form {
+    justify-content: center;
+  }
+
+  .streak__claws span {
+    left: auto !important;
+  }
+
+  .streak__claws span:nth-child(1) {
+    right: 18%;
+  }
+
+  .streak__claws span:nth-child(2) {
+    right: 25%;
+  }
+
+  .streak__claws span:nth-child(3) {
+    right: 31%;
+  }
+}

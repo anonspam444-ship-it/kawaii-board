@@ -10,11 +10,23 @@ Add, edit and delete entries in either list; everything is persisted to Supabase
 Anyone can read the board, but pinning and removing require a shared board
 passphrase.
 
+Above the lists sit two more things:
+
+- **A MapleStory Classic countdown** to midnight on 6 October, local time —
+  pixel sprites, drifting clouds, falling maple leaves and an EXP bar, all drawn
+  in CSS and SVG rather than fetched from anywhere.
+- **A no-contact streak counter** — one person's daily "did you?" check-in,
+  behind its own passphrase.
+
+Every entry is signed. There are no accounts: the browser asks for a name once
+and keeps it in `localStorage`.
+
 ```
 kawaii-board/
 ├── client/        React frontend (Vite)
 ├── server/        Node/Express backend
-├── supabase.sql   entries table + RLS
+├── migrations/    incremental SQL for databases that already exist
+├── supabase.sql   full schema: entries + streak + RLS
 ├── render.yaml    one-service deploy blueprint
 └── package.json   root convenience scripts (npm workspaces)
 ```
@@ -68,7 +80,14 @@ editable and the unlock box is hidden.
 1. Create a project at <https://supabase.com/dashboard>.
 2. Open **SQL Editor → New query**, paste the contents of
    [`supabase.sql`](./supabase.sql), and **Run**. This creates the `entries`
-   table and enables Row Level Security.
+   and `streak` tables and enables Row Level Security. Every statement is
+   idempotent, so it's safe to re-run.
+
+   > **Upgrading a database that already has `entries`?** Run
+   > [`migrations/002_authors_and_streak.sql`](./migrations/002_authors_and_streak.sql)
+   > instead — it's the same changes as the smaller diff. Without it the board
+   > still loads, but pinning fails with *column entries.author does not exist*
+   > and the streak panel reports a missing table.
 3. Grab two credentials. They live on **different** settings pages:
    - **Project Settings → Data API → Project URL** → `SUPABASE_URL`
      (it's `https://<project-ref>.supabase.co`, and the ref is also in the
@@ -136,9 +155,55 @@ same-origin requests during development.
   read or write the table — the server is the only way in.
 - Writes require the board passphrase; reads are public by default.
 
+### Signatures
+
+Every entry carries the name of whoever pinned it. There is no login: the
+browser asks for a name on first visit, keeps it in `localStorage`, and sends it
+along with each `POST`. Change it any time from the header.
+
+This is a **signature, not an identity claim** — anyone can type any name, and
+clearing site data makes you a stranger again. For a board shared between
+friends that's the right amount of ceremony; accounts would be more machinery
+than the thing is worth. Entries created before this existed have no author and
+render without a byline — the inline editor has a second field for the name, so
+they can be signed after the fact.
+
+`localStorage` rather than a cookie: the name is only ever read by this app's
+own JavaScript to put in a request body, so there's no reason to attach it to
+every request the browser makes.
+
+### The streak counter
+
+A single-row `streak` table holding `count`, `best` and `last_check_in`. The
+panel asks one question a day; answering *no* adds a day, answering *yes* sets
+the count to zero. `best` survives a reset, so losing the streak doesn't erase
+how far it got.
+
+Days are counted by hand rather than derived from a start date — the daily
+check-in is the point of it. The server allows one per calendar day and refuses
+a second, using a compare-and-swap on `last_check_in` so a double-tap or a
+retried request can't award two days for one press. Resetting takes two
+deliberate clicks in the UI.
+
+### The countdown
+
+Counts down to `new Date(2026, 9, 6, 0, 0, 0)` — midnight opening 6 October, in
+whatever timezone the browser is in. "October 6th, 12am" was specified without a
+zone, and local is the reading that matches the clock on the wall; change the
+`RELEASE` constant in `client/src/components/Countdown.jsx` to pin it to a fixed
+instant instead.
+
+The sprites are hand-drawn pixel art in `PixelSprite.jsx` — an array of strings
+plus a colour legend, rendered as run-length `<rect>`s. They're homemade
+lookalikes rather than Nexon's artwork: hotlinked assets break the moment the
+host blocks them, and this repo is public. The only external dependency is the
+**Press Start 2P** webfont from Google Fonts.
+
+Everything animated respects `prefers-reduced-motion`.
+
 ### Auth
 
-There are no user accounts — one passphrase guards the board.
+There are no user accounts — two passphrases guard the two writable things.
 
 - It lives **only** in `server/.env` as `BOARD_PASSWORD`. It is never baked into
   the client bundle: a `VITE_*` value would be readable by anyone who views
@@ -155,11 +220,18 @@ There are no user accounts — one passphrase guards the board.
 - A rejected passphrase is dropped from `localStorage`, so the UI falls back to
   locked instead of retrying with a dead credential.
 
-| Env var                  | Default | Effect                                        |
-| ------------------------ | ------- | --------------------------------------------- |
-| `BOARD_PASSWORD`         | —       | Required. The passphrase; no default.         |
-| `REQUIRE_AUTH_FOR_READS` | `false` | `true` also gates `GET`, for a private board. |
-| `TRUST_PROXY`            | unset   | Set behind a reverse proxy (see below).       |
+| Env var                  | Default      | Effect                                          |
+| ------------------------ | ------------ | ----------------------------------------------- |
+| `BOARD_PASSWORD`         | —            | Required. The board passphrase; no default.     |
+| `STREAK_PASSWORD`        | in `auth.js` | The streak counter's own passphrase.            |
+| `REQUIRE_AUTH_FOR_READS` | `false`      | `true` also gates `GET`, for a private board.   |
+| `TRUST_PROXY`            | unset        | Set behind a reverse proxy (see below).         |
+
+The two passphrases are deliberately independent, and are throttled
+independently too — a wrong streak guess can't lock anyone out of pinning
+entries. `STREAK_PASSWORD` is the one credential with a fallback baked into
+`server/auth.js`; that default is public, so override it on any real deploy.
+The server prints a warning at startup when it's still using it.
 
 > ⚠️ `cors()` is wide open. That's intentional and harmless here — a bearer
 > token isn't a cookie, so a browser won't attach it to another site's requests
@@ -168,16 +240,24 @@ There are no user accounts — one passphrase guards the board.
 
 ### API
 
-| Method   | Route               | Body              | Returns             | Auth                        |
-| -------- | ------------------- | ----------------- | ------------------- | --------------------------- |
-| `GET`    | `/api/entries`      | —                 | `Entry[]`           | none¹                       |
-| `POST`   | `/api/entries`      | `{ text, list }`  | created `Entry`     | **passphrase**              |
-| `PATCH`  | `/api/entries/:id`  | `{ text }`        | updated `Entry`     | **passphrase**              |
-| `DELETE` | `/api/entries/:id`  | —                 | `204 No Content`    | **passphrase**              |
-| `POST`   | `/api/session`      | —                 | `{ ok: true }`      | **passphrase**              |
-| `GET`    | `/api/health`       | —                 | `{ ok: true }`      | none                        |
+| Method   | Route                   | Body                       | Returns            | Auth                |
+| -------- | ----------------------- | -------------------------- | ------------------ | ------------------- |
+| `GET`    | `/api/entries`          | —                          | `Entry[]`          | none¹               |
+| `POST`   | `/api/entries`          | `{ text, list, author? }`  | created `Entry`    | **board**           |
+| `PATCH`  | `/api/entries/:id`      | `{ text?, author? }`       | updated `Entry`    | **board**           |
+| `DELETE` | `/api/entries/:id`      | —                          | `204 No Content`   | **board**           |
+| `POST`   | `/api/session`          | —                          | `{ ok: true }`     | **board**           |
+| `GET`    | `/api/streak`           | —                          | `Streak`           | none¹               |
+| `POST`   | `/api/streak/check-in`  | `{ today }`                | updated `Streak`   | **streak**          |
+| `POST`   | `/api/streak/reset`     | `{ today }`                | updated `Streak`   | **streak**          |
+| `POST`   | `/api/streak/session`   | —                          | `{ ok: true }`     | **streak**          |
+| `GET`    | `/api/health`           | —                          | `{ ok: true }`     | none                |
 
 ¹ Unless `REQUIRE_AUTH_FOR_READS=true`.
+
+**board** = `Authorization: Bearer <BOARD_PASSWORD>`.
+**streak** = `X-Streak-Key: <STREAK_PASSWORD>`. Two different headers so a
+browser holding both can send both without them colliding on `Authorization`.
 
 `POST /api/session` just validates a passphrase so the unlock box can report a
 bad one immediately rather than failing on the next pin. There is no
@@ -194,17 +274,34 @@ curl -X POST http://localhost:3001/api/entries \
   -d '{"text":"certified angel","list":"worth"}'
 ```
 
-`PATCH` edits only the text — moving an entry between lists is a different
-gesture from renaming it, and nothing in the UI asks for it.
+`PATCH` takes either field or both, and writes only the keys actually present
+— so renaming an entry leaves its signature alone, and re-signing one leaves
+its text alone. Sending `author: null` or `""` clears the byline. An empty body
+is a `400` rather than a silent no-op. Moving an entry between lists is still a
+different gesture from renaming it, and nothing in the UI asks for it.
 
 Failures: `401` with `WWW-Authenticate: Bearer` for a missing or wrong
 passphrase, `429` once throttled, `400` for invalid input, `404` from `PATCH`
 and `DELETE` for an id that doesn't exist (including a malformed uuid, which
 Postgres rejects outright).
 
+`today` is the **browser's** local calendar date as `YYYY-MM-DD`, not the
+server's. A UTC date would roll over at the wrong moment for everyone outside
+UTC — an evening check-in could land on tomorrow and burn two days at once. The
+server sanity-checks that it's within one day of its own UTC date, so a client
+can't stake out the whole calendar, but otherwise trusts it.
+
+`check-in` returns `409` if that date has already been counted. `reset` is
+always allowed, and never touches `best`.
+
 ```jsonc
 // Entry
-{ "id": "uuid", "text": "certified angel", "list": "worth", "created_at": "..." }
+{ "id": "uuid", "text": "certified angel", "list": "worth",
+  "author": "josh", "created_at": "..." }
+
+// Streak
+{ "id": 1, "count": 12, "best": 31, "last_check_in": "2026-09-19",
+  "updated_at": "..." }
 ```
 
 ---

@@ -11,5 +11,14 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:3001',
     },
+    watch: {
+      // This repo lives on the Windows drive (/mnt/c/...) while the dev server
+      // runs under WSL, and inotify events don't cross that boundary
+      // reliably — edits were being missed, so the browser kept getting the
+      // previous version of a file even on a hard reload. Polling is a little
+      // more CPU but makes hot reload actually dependable here.
+      usePolling: true,
+      interval: 300,
+    },
   },
 })

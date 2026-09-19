@@ -1,8 +1,23 @@
 import { Fragment, useEffect, useState } from 'react'
 import Column from './components/Column.jsx'
 import UnlockBar from './components/UnlockBar.jsx'
-import { getEntries, createEntry, updateEntry, deleteEntry, unlock, isMock } from './api.js'
-import { clearToken, hasToken } from './auth.js'
+import Countdown from './components/Countdown.jsx'
+import StreakPanel from './components/StreakPanel.jsx'
+import NamePrompt from './components/NamePrompt.jsx'
+import {
+  getEntries,
+  createEntry,
+  updateEntry,
+  deleteEntry,
+  unlock,
+  getStreak,
+  checkInStreak,
+  resetStreak,
+  unlockStreak,
+  isMock,
+} from './api.js'
+import { clearToken, hasToken, clearStreakToken, hasStreakToken } from './auth.js'
+import { getName, setName, hasName, hasBeenGreeted, markGreeted } from './identity.js'
 import './styles/board.css'
 
 // Add more lists here later (each needs matching theme styles + placeholders).
@@ -17,6 +32,14 @@ export default function App() {
   const [error, setError] = useState(null)
   // Mock mode has no server to authenticate against, so it's always editable.
   const [unlocked, setUnlocked] = useState(() => isMock || hasToken())
+
+  const [streak, setStreak] = useState(null)
+  const [streakLoading, setStreakLoading] = useState(true)
+  const [streakUnlocked, setStreakUnlocked] = useState(() => isMock || hasStreakToken())
+
+  const [name, setNameValue] = useState(getName)
+  // null | 'greet' (dismissible, first visit) | 'required' (tried to pin unnamed)
+  const [prompt, setPrompt] = useState(null)
 
   function load() {
     setLoading(true)
@@ -33,8 +56,39 @@ export default function App() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [])
+  function loadStreak() {
+    setStreakLoading(true)
+    getStreak()
+      .then(setStreak)
+      .catch((e) => {
+        // A missing streak table shouldn't blank out the board, so this failure
+        // is reported in the banner and the panel stays on screen at zero.
+        if (e.status !== 401) setError(e.message)
+      })
+      .finally(() => setStreakLoading(false))
+  }
 
+  useEffect(() => {
+    load()
+    loadStreak()
+    // Say hello once, ever. Skipping is remembered so a visitor who only reads
+    // the board isn't asked again every time they open it.
+    if (!hasName() && !hasBeenGreeted()) setPrompt('greet')
+  }, [])
+
+  // --- identity -------------------------------------------------------------
+  function handleSaveName(value) {
+    setNameValue(setName(value))
+    markGreeted()
+    setPrompt(null)
+  }
+
+  function handleSkipName() {
+    markGreeted()
+    setPrompt(null)
+  }
+
+  // --- board ----------------------------------------------------------------
   async function handleUnlock(passphrase) {
     setError(null)
     try {
@@ -55,8 +109,16 @@ export default function App() {
 
   async function handleAdd(text, list) {
     setError(null)
+
+    // Nothing goes up unsigned. Throwing leaves the typed text in the form, so
+    // once a name is given the same entry is one click away.
+    if (!hasName()) {
+      setPrompt('required')
+      throw new Error('name required')
+    }
+
     try {
-      const entry = await createEntry(text, list)
+      const entry = await createEntry(text, list, getName())
       setEntries((prev) => [...prev, entry])
     } catch (e) {
       if (e.status === 401) setUnlocked(false)
@@ -65,13 +127,14 @@ export default function App() {
     }
   }
 
-  async function handleEdit(id, text) {
+  // `patch` is { text?, author? } — the inline editor sends both.
+  async function handleEdit(id, patch) {
     setError(null)
     const snapshot = entries
-    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, text } : e))) // optimistic
+    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e))) // optimistic
     try {
-      const updated = await updateEntry(id, text)
-      // Trust the server's copy when it sends one (it trims the text).
+      const updated = await updateEntry(id, patch)
+      // Trust the server's copy when it sends one (it trims the values).
       if (updated) setEntries((prev) => prev.map((e) => (e.id === id ? updated : e)))
     } catch (e) {
       if (e.status === 401) setUnlocked(false)
@@ -93,17 +156,91 @@ export default function App() {
     }
   }
 
+  // --- streak ---------------------------------------------------------------
+  async function handleStreakUnlock(passphrase) {
+    setError(null)
+    try {
+      await unlockStreak(passphrase)
+      setStreakUnlocked(true)
+    } catch (e) {
+      setError(e.message)
+      throw e // StreakPanel keeps its box open to retry
+    }
+  }
+
+  function handleStreakLock() {
+    clearStreakToken()
+    setStreakUnlocked(false)
+    setError(null)
+  }
+
+  // Both writes take the server's returned row as the truth rather than
+  // guessing locally: the server owns the once-a-day rule and the best-ever
+  // number, so its copy is the one that's right.
+  async function runStreakWrite(action) {
+    setError(null)
+    try {
+      setStreak(await action())
+    } catch (e) {
+      if (e.status === 401) setStreakUnlocked(false)
+      // A 409 means the day was already counted — refresh so the panel shows
+      // the real state rather than staying on a stale "not yet today".
+      if (e.status === 409) loadStreak()
+      setError(e.message)
+      throw e
+    }
+  }
+
+  const handleCheckIn = () => runStreakWrite(() => checkInStreak())
+  const handleStreakReset = () => runStreakWrite(() => resetStreak())
+
   return (
     <div className="board">
       <div className="board__frame">
         <header className="board__header">
           <h1 className="board__title">WORTHLESS or NOXIST</h1>
+
+          <p className="board__signature">
+            {name ? (
+              <>
+                signed as <strong>{name}</strong>
+                <button
+                  type="button"
+                  className="board__signature-btn"
+                  onClick={() => setPrompt('greet')}
+                >
+                  change
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="board__signature-btn"
+                onClick={() => setPrompt('greet')}
+              >
+                add your name
+              </button>
+            )}
+          </p>
+
           {!isMock && (
             <UnlockBar unlocked={unlocked} onUnlock={handleUnlock} onLock={handleLock} />
           )}
         </header>
 
         {error && <p className="board__error">⚠ {error}</p>}
+
+        <Countdown />
+
+        <StreakPanel
+          streak={streak}
+          loading={streakLoading}
+          unlocked={streakUnlocked}
+          onUnlock={handleStreakUnlock}
+          onLock={handleStreakLock}
+          onCheckIn={handleCheckIn}
+          onReset={handleStreakReset}
+        />
 
         <div className="board__columns">
           {LISTS.map((l, i) => (
@@ -123,6 +260,15 @@ export default function App() {
           ))}
         </div>
       </div>
+
+      {prompt && (
+        <NamePrompt
+          initial={name ?? ''}
+          required={prompt === 'required'}
+          onSave={handleSaveName}
+          onSkip={handleSkipName}
+        />
+      )}
     </div>
   )
 }

@@ -86,8 +86,25 @@
   padding: 12px 14px;
 }
 
-.entry__text {
+/* Text and byline stack; this is the flexible middle of the row. */
+.entry__body {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.entry__text {
+  word-break: break-word;
+}
+
+/* Who pinned it. Quiet by design — the entry is the point, the signature is
+   a footnote. */
+.entry__author {
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  opacity: 0.7;
   word-break: break-word;
 }
 
@@ -136,13 +153,29 @@
   gap: 6px;
 }
 
-.entry__input {
+/* Text on top, signature underneath — the same stack the entry shows when
+   it isn't being edited, so the layout doesn't jump. */
+.entry__edit-fields {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.entry__input {
+  width: 100%;
   min-width: 0;
   padding: 6px 9px;
   border: 2px solid transparent;
   border-radius: 6px;
   font: inherit;
+}
+
+/* Smaller, to read as the secondary field it is. */
+.entry__input--author {
+  padding: 4px 9px;
+  font-size: 0.8rem;
 }
 
 .entry__input:focus {
@@ -259,6 +292,13 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
+.entry--worth .entry__author {
+  font-family: 'Pacifico', 'Baloo 2', cursive;
+  font-weight: 400;
+  color: var(--worth-pink-deep);
+  opacity: 0.75;
+}
+
 .entry--worth .entry__action {
   color: #e84f8c;
 }
@@ -361,6 +401,14 @@
 }
 
 .entry--worst .entry__text {
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.entry--worst .entry__author {
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  color: #6b2020;
+  opacity: 0.85;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
