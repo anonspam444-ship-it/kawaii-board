@@ -4,6 +4,7 @@ import { dbError } from './dbError.js'
 import { hasBoardPassword } from './auth.js'
 import { rateLimit } from './rateLimit.js'
 import { uploadDataUrl, removeByUrl } from './uploads.js'
+import { recordEvent } from './events.js'
 
 // The shared timeline. Anyone may post, like and comment — there is no
 // credential for writing here, only a client_id the browser made up about
@@ -66,6 +67,8 @@ feedRouter.get('/', async (req, res) => {
   for (const post of posts) {
     ids.add(post.client_id)
     for (const comment of post.post_comments) ids.add(comment.client_id)
+    // Likers too, so the button can say who they were.
+    for (const like of post.post_likes) ids.add(like.client_id)
   }
 
   const authors = new Map()
@@ -80,7 +83,19 @@ feedRouter.get('/', async (req, res) => {
   }
 
   // A post whose author never saved a profile still renders, as "someone".
-  const author = (clientId) => authors.get(clientId) ?? { client_id: clientId, name: null, avatar_url: null }
+  //
+  // client_id is deliberately NOT included. It is the credential the delete
+  // routes check, and this endpoint is public — returning it let anyone read
+  // the feed, harvest an author's id, and delete their posts with no
+  // passphrase at all. The browser already knows its own id; what it needs
+  // from us is the `mine` flag, which the server works out below.
+  const author = (clientId) => {
+    const profile = authors.get(clientId)
+    return { name: profile?.name ?? null, avatar_url: profile?.avatar_url ?? null }
+  }
+
+  // Names only, for the like button's tooltip — same reasoning as above.
+  const likerName = (clientId) => authors.get(clientId)?.name ?? null
 
   res.json(
     posts.map((post) => ({
@@ -91,6 +106,10 @@ feedRouter.get('/', async (req, res) => {
       author: author(post.client_id),
       likes: post.post_likes.length,
       liked_by_me: me ? post.post_likes.some((l) => l.client_id === me) : false,
+      // Who liked it. Anyone without a saved profile is dropped rather than
+      // listed as "someone", since a tooltip of anonymous entries says less
+      // than the count already does.
+      liked_by: post.post_likes.map((l) => likerName(l.client_id)).filter(Boolean),
       mine: me ? post.client_id === me : false,
       comments: post.post_comments
         .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -141,10 +160,14 @@ feedRouter.post('/', postLimit, jsonWithImage, async (req, res) => {
     return res.status(500).json({ error: dbError(error) })
   }
 
+  // Broadcast: a new post is news to everybody.
+  await recordEvent({ kind: 'post', actor: clientId, postId: data.id, snippet: text })
+
   res.status(201).json({
     ...data,
     likes: 0,
     liked_by_me: false,
+    liked_by: [],
     mine: true,
     comments: [],
     // The client already knows who it is; it fills the author in locally.
@@ -201,6 +224,13 @@ feedRouter.post('/:id/like', likeLimit, async (req, res) => {
   if (isBadUuid(readError)) return res.status(404).json({ error: 'post not found' })
   if (readError) return res.status(500).json({ error: dbError(readError) })
 
+  // Needed to address the notification at whoever owns the post.
+  const { data: likedPost } = await supabase
+    .from('posts')
+    .select('client_id, body')
+    .eq('id', req.params.id)
+    .maybeSingle()
+
   if (existing) {
     const { error } = await supabase
       .from('post_likes')
@@ -229,6 +259,19 @@ feedRouter.post('/:id/like', likeLimit, async (req, res) => {
     .eq('post_id', req.params.id)
 
   if (countError) return res.status(500).json({ error: dbError(countError) })
+
+  // Only on the way up, and never for liking your own post. Unliking is not
+  // an event — nobody wants to be told their like was taken back.
+  if (!existing && likedPost && likedPost.client_id !== clientId) {
+    await recordEvent({
+      kind: 'like',
+      actor: clientId,
+      target: likedPost.client_id,
+      postId: req.params.id,
+      snippet: likedPost.body,
+    })
+  }
+
   res.json({ likes: count ?? 0, liked_by_me: !existing })
 })
 
@@ -255,6 +298,22 @@ feedRouter.post('/:id/comments', commentLimit, async (req, res) => {
     return res.status(404).json({ error: 'post not found' })
   }
   if (error) return res.status(500).json({ error: dbError(error) })
+
+  const { data: commentedPost } = await supabase
+    .from('posts')
+    .select('client_id')
+    .eq('id', req.params.id)
+    .maybeSingle()
+
+  if (commentedPost && commentedPost.client_id !== clientId) {
+    await recordEvent({
+      kind: 'comment',
+      actor: clientId,
+      target: commentedPost.client_id,
+      postId: req.params.id,
+      snippet: text,
+    })
+  }
 
   res.status(201).json({ ...data, mine: true })
 })

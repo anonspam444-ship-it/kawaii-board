@@ -7,6 +7,8 @@ import NamePrompt from './components/NamePrompt.jsx'
 import Feed from './components/Feed.jsx'
 import Avatar from './components/Avatar.jsx'
 import AdminPanel from './components/AdminPanel.jsx'
+import Toasts from './components/Toasts.jsx'
+import { useNotifications } from './lib/notifications.js'
 import {
   getEntries,
   createEntry,
@@ -27,8 +29,8 @@ import {
   getName,
   setName,
   hasName,
-  hasBeenGreeted,
-  markGreeted,
+  wasDismissed,
+  markDismissed,
   getAvatarUrl,
   setAvatarUrl,
 } from './identity.js'
@@ -57,6 +59,10 @@ export default function App() {
   const [prompt, setPrompt] = useState(null)
   // The visit log lives at #admin and is never linked to. See AdminPanel.
   const [showAdmin, setShowAdmin] = useState(() => location.hash === '#admin')
+
+  // Paused on the admin screen: it isn't the board, and toasts about the feed
+  // sliding over a log you're reading is just in the way.
+  const { toasts, dismiss } = useNotifications(!showAdmin && !isMock)
 
   function load() {
     setLoading(true)
@@ -90,9 +96,9 @@ export default function App() {
     loadStreak()
     logVisit()
 
-    // Say hello once, ever. Skipping is remembered so a visitor who only reads
-    // the board isn't asked again every time they open it.
-    if (!hasName() && !hasBeenGreeted()) setPrompt('greet')
+    // Asked on every load until a name exists — see identity.js for why the
+    // dismissal is no longer remembered across visits.
+    if (!hasName() && !wasDismissed()) setPrompt('greet')
 
     // The avatar URL is only cached locally; the profile row is the truth. A
     // browser that kept its client id but lost the cache (or uploaded a
@@ -121,12 +127,11 @@ export default function App() {
     const profile = await saveProfile({ name: value, avatar, removeAvatar })
     setNameValue(setName(profile?.name ?? value))
     setAvatarUrlValue(setAvatarUrl(profile?.avatar_url ?? null))
-    markGreeted()
     setPrompt(null)
   }
 
   function handleSkipName() {
-    markGreeted()
+    markDismissed()
     setPrompt(null)
   }
 
@@ -321,6 +326,8 @@ export default function App() {
           onNeedName={() => setPrompt('required')}
         />
       </div>
+
+      <Toasts toasts={toasts} onDismiss={dismiss} />
 
       {prompt && (
         <NamePrompt

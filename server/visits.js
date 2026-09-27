@@ -101,17 +101,60 @@ visitsRouter.post(
   },
 )
 
-// GET /api/admin/visits — newest first.
-adminRouter.get('/visits', requireAdmin, async (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 500, 2000)
-
+// Reads the log and works out who each row belongs to.
+//
+// A visit is recorded the moment a page loads, which is before anyone has had
+// the chance to type a name — so the first row for a new browser always has
+// `name` empty, and only later visits carry it. That used to leave the log
+// full of anonymous first-contacts that were, in fact, attributable.
+//
+// The fix is that the beacon always sends a `client_id` (minted on first use,
+// before the prompt is even shown), so the row is already linked to a browser.
+// Resolving names from `profiles` at read time rather than trusting what was
+// captured at the time means a name set *later* retroactively labels every
+// earlier visit from that browser — and a rename relabels them all again,
+// which storing a copy on each row would not.
+async function loadVisits(limit) {
   const { data, error } = await supabase
     .from('visits')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (error) return res.status(500).json({ error: dbError(error) })
+  if (error) return { error: dbError(error) }
+
+  const ids = [...new Set(data.map((row) => row.client_id).filter(Boolean))]
+  const names = new Map()
+
+  if (ids.length) {
+    const { data: profiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('client_id, name')
+      .in('client_id', ids)
+
+    if (profileError) return { error: dbError(profileError) }
+    for (const profile of profiles) names.set(profile.client_id, profile.name)
+  }
+
+  return {
+    data: data.map((row) => ({
+      ...row,
+      // Best known name for this browser. `logged_name` keeps whatever the
+      // beacon actually sent, so the difference stays visible rather than
+      // being quietly rewritten.
+      name: names.get(row.client_id) ?? row.name ?? null,
+      logged_name: row.name ?? null,
+      named_later: Boolean(!row.name && names.get(row.client_id)),
+    })),
+  }
+}
+
+// GET /api/admin/visits — newest first.
+adminRouter.get('/visits', requireAdmin, async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 500, 2000)
+
+  const { data, error } = await loadVisits(limit)
+  if (error) return res.status(500).json({ error })
 
   // A little summary, since "who keeps coming back" is the actual question.
   const byIp = new Map()
@@ -126,6 +169,10 @@ adminRouter.get('/visits', requireAdmin, async (req, res) => {
   res.json({
     total: data.length,
     unique_ips: byIp.size,
+    // How many rows are still anonymous: a browser that has never saved a
+    // name. That number, not a blank column, is the honest answer to "who
+    // visited" for people who only ever looked.
+    unnamed: data.filter((row) => !row.name).length,
     top: [...byIp.values()]
       .sort((a, b) => b.visits - a.visits)
       .slice(0, 20)
@@ -139,19 +186,16 @@ adminRouter.get('/visits', requireAdmin, async (req, res) => {
 adminRouter.get('/visits.log', requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 2000, 10_000)
 
-  const { data, error } = await supabase
-    .from('visits')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (error) return res.status(500).json({ error: dbError(error) })
+  const { data, error } = await loadVisits(limit)
+  if (error) return res.status(500).json({ error })
 
   const lines = data.map((row) =>
     [
       row.created_at,
       row.ip ?? '-',
-      row.name ?? '-',
+      // A trailing * marks a name resolved from the profile rather than sent
+      // by the beacon at the time.
+      (row.name ?? '-') + (row.named_later ? '*' : ''),
       row.client_id ?? '-',
       row.path ?? '-',
       `ref=${row.referrer ?? '-'}`,

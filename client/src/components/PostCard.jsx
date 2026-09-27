@@ -109,6 +109,17 @@ export default function PostCard({
     onLike(post.id)
   }
 
+  // Who liked it, for the button's tooltip. Long lists get truncated rather
+  // than producing a tooltip nobody can read; likers with no saved profile
+  // are already filtered out server-side, so the count can exceed this list.
+  function likeTooltip() {
+    const names = post.liked_by ?? []
+    if (!names.length) return post.likes > 0 ? `${post.likes} likes` : 'Like this'
+    const shown = names.slice(0, 12).join(', ')
+    const rest = names.length - 12
+    return rest > 0 ? `${shown} and ${rest} more` : shown
+  }
+
   return (
     <li className="post">
       <div className="post__head">
@@ -159,6 +170,7 @@ export default function PostCard({
           className={`post__like${post.liked_by_me ? ' post__like--on' : ''}`}
           onClick={like}
           aria-pressed={post.liked_by_me}
+          title={likeTooltip()}
         >
           {post.liked_by_me ? '♥' : '♡'} {post.likes > 0 && post.likes}
         </button>

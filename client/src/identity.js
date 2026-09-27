@@ -45,25 +45,23 @@ export function setName(value) {
 export const clearName = () => setName(null)
 
 // --- "have we said hello yet?" ---------------------------------------------
-// Separate from the name itself so that someone who skips the prompt isn't
-// asked again on every page load. Pinning still requires a name — the prompt
-// comes back at that point, when it has an obvious reason to.
-const GREETED_KEY = 'kawaii-board.greeted'
+// Deliberately NOT persisted.
+//
+// This used to be a localStorage flag, so skipping the prompt once meant never
+// being asked again — and the visit log filled up with people who had looked
+// but never said who they were. Keeping it in memory means a skip lasts the
+// current page view and the prompt returns on the next load, until a name is
+// actually set.
+//
+// It's a nag, not a wall: reading the board never requires a name, and the
+// prompt is still dismissible every time. A hard gate would just cost us the
+// visitors who bounce off it — the ones most worth knowing about.
+let dismissedThisVisit = false
 
-export function hasBeenGreeted() {
-  try {
-    return localStorage.getItem(GREETED_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
+export const wasDismissed = () => dismissedThisVisit
 
-export function markGreeted() {
-  try {
-    localStorage.setItem(GREETED_KEY, 'true')
-  } catch {
-    // Non-fatal: worst case the greeting shows again next visit.
-  }
+export function markDismissed() {
+  dismissedThisVisit = true
 }
 
 // --- client id --------------------------------------------------------------

@@ -263,3 +263,16 @@ export const getVisits = (adminKey, limit = 500) =>
     auth: 'none',
     headers: { 'X-Admin-Key': adminKey },
   })
+
+// --- notifications ----------------------------------------------------------
+// `since` is the highest event id this browser has already shown. Passing null
+// asks only for the current high-water mark, which is how a new browser starts
+// from "now" instead of opening to a burst of old toasts.
+export const getEvents = (since) =>
+  USE_MOCK
+    ? { latest_id: 0, events: [] }
+    : request(
+        `/api/events?client_id=${encodeURIComponent(getClientId())}` +
+          (since === null || since === undefined ? '' : `&since=${since}`),
+        { auth: 'none' },
+      )

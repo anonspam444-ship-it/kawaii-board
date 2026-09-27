@@ -12,6 +12,7 @@ import {
   streakUsesDefaultPassword,
 } from './auth.js'
 import { dbError } from './dbError.js'
+import { eventsRouter } from './events.js'
 import { feedRouter } from './feed.js'
 import { profileRouter } from './profiles.js'
 import { visitsRouter, adminRouter } from './visits.js'
@@ -81,6 +82,7 @@ const readGuards = requireAuthForReads ? [requireAuth] : []
 // Mounted before the entries routes purely for readability; Express matches on
 // path, so the order between these is not significant.
 app.use('/api/feed', feedRouter)
+app.use('/api/events', eventsRouter)
 app.use('/api/profile', profileRouter)
 app.use('/api/visit', visitsRouter)
 app.use('/api/admin', adminRouter)
