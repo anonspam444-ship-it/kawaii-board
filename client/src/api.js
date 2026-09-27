@@ -1,4 +1,5 @@
 import { mockEntries, mockStreak } from './mockData.js'
+import { getClientId, getName } from './identity.js'
 import {
   authHeaders,
   clearToken,
@@ -83,6 +84,11 @@ const mockApi = {
 // `auth` picks which credential rides along, and therefore which one gets
 // thrown away on a 401: a rejected streak key must not log you out of the
 // board, and vice versa.
+// The feed identifies the caller with a header as well as a body field: the
+// body is how a write says who wrote it, the header is how a delete proves
+// (on the honour system) that it's removing its own.
+const clientHeaders = () => ({ 'X-Client-Id': getClientId() })
+
 async function request(path, { auth = 'board', ...options } = {}) {
   const credential =
     auth === 'streak' ? streakHeaders() : auth === 'none' ? {} : authHeaders()
@@ -173,3 +179,87 @@ export async function unlockStreak(passphrase) {
     throw e
   }
 }
+
+// --- profile ----------------------------------------------------------------
+export const getProfile = (clientId = getClientId()) =>
+  USE_MOCK ? null : request(`/api/profile/${clientId}`, { auth: 'none' })
+
+// `avatar` is a base64 data URL, or omit it to keep the stored one.
+// `removeAvatar` clears it.
+export const saveProfile = ({ name, avatar, removeAvatar } = {}) =>
+  USE_MOCK
+    ? { client_id: getClientId(), name, avatar_url: avatar ?? null }
+    : request('/api/profile', {
+        auth: 'none',
+        method: 'PUT',
+        body: JSON.stringify({
+          client_id: getClientId(),
+          name,
+          ...(avatar ? { avatar } : {}),
+          ...(removeAvatar ? { remove_avatar: true } : {}),
+        }),
+      })
+
+// --- feed -------------------------------------------------------------------
+// client_id rides along on the read too, so the server can mark which posts
+// this browser has already liked and which are its own.
+export const getFeed = () =>
+  USE_MOCK
+    ? []
+    : request(`/api/feed?client_id=${encodeURIComponent(getClientId())}`, { auth: 'none' })
+
+export const createPost = ({ body, image }) =>
+  request('/api/feed', {
+    auth: 'none',
+    method: 'POST',
+    body: JSON.stringify({ client_id: getClientId(), body, ...(image ? { image } : {}) }),
+  })
+
+export const deletePost = (id) =>
+  request(`/api/feed/${id}`, { auth: 'board', method: 'DELETE', headers: clientHeaders() })
+
+export const togglePostLike = (id) =>
+  request(`/api/feed/${id}/like`, {
+    auth: 'none',
+    method: 'POST',
+    body: JSON.stringify({ client_id: getClientId() }),
+  })
+
+export const createComment = (postId, body) =>
+  request(`/api/feed/${postId}/comments`, {
+    auth: 'none',
+    method: 'POST',
+    body: JSON.stringify({ client_id: getClientId(), body }),
+  })
+
+export const deleteComment = (postId, commentId) =>
+  request(`/api/feed/${postId}/comments/${commentId}`, {
+    auth: 'board',
+    method: 'DELETE',
+    headers: clientHeaders(),
+  })
+
+// --- visit beacon -----------------------------------------------------------
+// Fired once per page load. Deliberately unawaited and never surfaced: the
+// board must not care whether the log worked.
+export function logVisit() {
+  if (USE_MOCK) return
+  request('/api/visit', {
+    auth: 'none',
+    method: 'POST',
+    body: JSON.stringify({
+      client_id: getClientId(),
+      name: getName(),
+      path: location.pathname + location.search,
+    }),
+  }).catch(() => {})
+}
+
+// --- admin ------------------------------------------------------------------
+// The visit log. The key is held in memory only — it is never written to
+// localStorage, so closing the tab forgets it.
+export const getVisits = (adminKey, limit = 500) =>
+  request(`/api/admin/visits?limit=${limit}`, {
+    auth: 'none',
+    headers: { 'X-Admin-Key': adminKey },
+  })

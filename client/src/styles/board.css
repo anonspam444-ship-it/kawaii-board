@@ -334,3 +334,65 @@
     animation: none;
   }
 }
+
+/* ---- avatar + picture picker in the name prompt -------------------------- */
+.board__signature {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.board__avatar {
+  box-shadow: 0 0 0 2px rgba(244, 217, 166, 0.6), 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+
+.name-prompt__pic {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 6px;
+  padding: 6px;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  cursor: pointer;
+}
+
+.name-prompt__pic:hover .name-prompt__pic-hint {
+  color: var(--wood-ink);
+}
+
+.name-prompt__pic .avatar {
+  box-shadow:
+    0 0 0 3px rgba(244, 217, 166, 0.55),
+    0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.name-prompt__pic-hint {
+  font-family: 'Baloo 2', system-ui, cursive;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c9a878;
+}
+
+.name-prompt__pic-drop {
+  display: block;
+  margin: 0 auto 14px;
+  border: none;
+  background: none;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.75rem;
+  color: #b3906a;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.name-prompt__error {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+  color: #ffb3b3;
+}

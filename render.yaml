@@ -3,7 +3,7 @@
 #
 #   Render dashboard → New → Blueprint → pick this repo.
 #
-# The four `sync: false` values are not in this file on purpose: Render will
+# The five `sync: false` values are not in this file on purpose: Render will
 # prompt for them, and they must never be committed.
 services:
   - type: web
@@ -33,6 +33,9 @@ services:
       # The streak counter's own passphrase. Without it the server falls back
       # to the default in auth.js, which is in the public repo.
       - key: STREAK_PASSWORD
+        sync: false
+      # Guards the visitor log. Unset leaves /api/admin/* disabled (503).
+      - key: ADMIN_PASSWORD
         sync: false
       # "true" makes the board private (reading needs the passphrase too).
       - key: REQUIRE_AUTH_FOR_READS

@@ -5,11 +5,13 @@ import crypto from 'node:crypto'
 // things. It is never baked into the client bundle (a VITE_* value would be
 // readable by anyone who views source, which is obscurity rather than auth).
 //
-// There are two independent credentials:
+// There are three independent credentials:
 //   BOARD_PASSWORD   pinning/nailing/editing entries
 //   STREAK_PASSWORD  the no-contact counter, which belongs to one person
+//   ADMIN_PASSWORD   the visit log — the owner only
 // They are deliberately separate: everyone with the board passphrase should
-// not thereby be able to reset somebody else's streak.
+// not thereby be able to reset somebody else's streak, and neither of those
+// should expose who has been visiting the site.
 
 const boardPassword = process.env.BOARD_PASSWORD
 
@@ -36,6 +38,19 @@ if (boardPassword.length < 12) {
 // this file, in a public repo), so a real deploy should override it.
 const STREAK_DEFAULT = 'barkdog69'
 const streakPassword = process.env.STREAK_PASSWORD || STREAK_DEFAULT
+
+// The visit log gets no default at all. Unlike the streak, guessing this one
+// exposes other people's data, so an unset value disables the endpoints
+// outright rather than falling back to something publishable.
+const adminPassword = process.env.ADMIN_PASSWORD || null
+export const adminEnabled = Boolean(adminPassword)
+
+if (adminPassword && adminPassword.length < 12) {
+  console.warn(
+    '[kawaii-board] ADMIN_PASSWORD is shorter than 12 characters. ' +
+      'It guards visitor IPs — consider `openssl rand -base64 24`.',
+  )
+}
 
 // --- brute-force throttle ---------------------------------------------------
 // A single guessable passphrase with unlimited attempts is weak, so failures
@@ -69,17 +84,20 @@ function recordFailure(key, now) {
   if (failures.size > 1000) sweep(now)
 }
 
+// Compare fixed-length digests: timingSafeEqual throws on length mismatch, and
+// hashing first keeps the comparison constant-time regardless of input length.
+function digestMatcher(password) {
+  const expected = crypto.createHash('sha256').update(password).digest()
+  return (given) =>
+    crypto.timingSafeEqual(expected, crypto.createHash('sha256').update(given).digest())
+}
+
 // --- guard factory ----------------------------------------------------------
 // `readCredential` pulls the secret out of the request; each realm uses its own
 // header so a browser holding both can send both at once without them fighting
 // over Authorization.
 function makeGuard({ realm, password, readCredential, challenge, missing, wrong }) {
-  // Compare fixed-length digests: timingSafeEqual throws on length mismatch,
-  // and hashing first keeps the comparison constant-time regardless of input.
-  const expected = crypto.createHash('sha256').update(password).digest()
-
-  const matches = (given) =>
-    crypto.timingSafeEqual(expected, crypto.createHash('sha256').update(given).digest())
+  const matches = digestMatcher(password)
 
   return function guard(req, res, next) {
     const now = Date.now()
@@ -127,6 +145,35 @@ export const requireStreakAuth = makeGuard({
   missing: 'Streak passphrase required.',
   wrong: "That's not the passphrase.",
 })
+
+// The visit log. When ADMIN_PASSWORD is unset this refuses everything with a
+// 503 rather than a 401, because there is no passphrase that would work and
+// pretending otherwise just invites guessing.
+export const requireAdmin = adminEnabled
+  ? makeGuard({
+      realm: 'admin',
+      password: adminPassword,
+      readCredential: (req) => (req.get('x-admin-key') ?? '').trim() || null,
+      missing: 'Admin key required.',
+      wrong: 'Wrong admin key.',
+    })
+  : (req, res) =>
+      res.status(503).json({
+        error: 'The visit log is disabled — set ADMIN_PASSWORD on the server to turn it on.',
+      })
+
+// A plain predicate for the board passphrase, for the places that need to ask
+// "is this request privileged?" as part of a larger decision rather than
+// rejecting outright — the feed lets you delete your own post OR anything at
+// all with the board passphrase, and that's one branch, not two middlewares.
+// Deliberately does not touch the failure throttle: an unprivileged caller
+// deleting their own post is the normal path, not a failed guess.
+const boardMatches = digestMatcher(boardPassword)
+
+export function hasBoardPassword(req) {
+  const token = bearer(req)
+  return Boolean(token && boardMatches(token))
+}
 
 // True when the streak is still using the passphrase baked into this file.
 // Only used for a startup warning — never sent to the client.

@@ -4,6 +4,9 @@ import UnlockBar from './components/UnlockBar.jsx'
 import Countdown from './components/Countdown.jsx'
 import StreakPanel from './components/StreakPanel.jsx'
 import NamePrompt from './components/NamePrompt.jsx'
+import Feed from './components/Feed.jsx'
+import Avatar from './components/Avatar.jsx'
+import AdminPanel from './components/AdminPanel.jsx'
 import {
   getEntries,
   createEntry,
@@ -14,10 +17,21 @@ import {
   checkInStreak,
   resetStreak,
   unlockStreak,
+  saveProfile,
+  getProfile,
+  logVisit,
   isMock,
 } from './api.js'
 import { clearToken, hasToken, clearStreakToken, hasStreakToken } from './auth.js'
-import { getName, setName, hasName, hasBeenGreeted, markGreeted } from './identity.js'
+import {
+  getName,
+  setName,
+  hasName,
+  hasBeenGreeted,
+  markGreeted,
+  getAvatarUrl,
+  setAvatarUrl,
+} from './identity.js'
 import './styles/board.css'
 
 // Add more lists here later (each needs matching theme styles + placeholders).
@@ -38,8 +52,11 @@ export default function App() {
   const [streakUnlocked, setStreakUnlocked] = useState(() => isMock || hasStreakToken())
 
   const [name, setNameValue] = useState(getName)
-  // null | 'greet' (dismissible, first visit) | 'required' (tried to pin unnamed)
+  const [avatarUrl, setAvatarUrlValue] = useState(getAvatarUrl)
+  // null | 'greet' (dismissible, first visit) | 'required' (tried to post unnamed)
   const [prompt, setPrompt] = useState(null)
+  // The visit log lives at #admin and is never linked to. See AdminPanel.
+  const [showAdmin, setShowAdmin] = useState(() => location.hash === '#admin')
 
   function load() {
     setLoading(true)
@@ -71,14 +88,39 @@ export default function App() {
   useEffect(() => {
     load()
     loadStreak()
+    logVisit()
+
     // Say hello once, ever. Skipping is remembered so a visitor who only reads
     // the board isn't asked again every time they open it.
     if (!hasName() && !hasBeenGreeted()) setPrompt('greet')
+
+    // The avatar URL is only cached locally; the profile row is the truth. A
+    // browser that kept its client id but lost the cache (or uploaded a
+    // picture on another device) gets it back here.
+    if (!getAvatarUrl()) {
+      getProfile()
+        .then((profile) => {
+          if (profile?.avatar_url) setAvatarUrlValue(setAvatarUrl(profile.avatar_url))
+          // A profile with a name we don't have locally means this browser
+          // cleared its name but not its id; adopt the stored one.
+          if (profile?.name && !hasName()) setNameValue(setName(profile.name))
+        })
+        .catch(() => {}) // 404 just means they've never saved one
+    }
+
+    const onHash = () => setShowAdmin(location.hash === '#admin')
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
   // --- identity -------------------------------------------------------------
-  function handleSaveName(value) {
-    setNameValue(setName(value))
+  // Saving goes to the server now, because an avatar other people can see has
+  // to live somewhere they can reach. The local copies are updated from the
+  // server's response so the stored URL is always one that actually resolves.
+  async function handleSaveName({ name: value, avatar, removeAvatar }) {
+    const profile = await saveProfile({ name: value, avatar, removeAvatar })
+    setNameValue(setName(profile?.name ?? value))
+    setAvatarUrlValue(setAvatarUrl(profile?.avatar_url ?? null))
     markGreeted()
     setPrompt(null)
   }
@@ -194,6 +236,17 @@ export default function App() {
   const handleCheckIn = () => runStreakWrite(() => checkInStreak())
   const handleStreakReset = () => runStreakWrite(() => resetStreak())
 
+  if (showAdmin) {
+    return (
+      <AdminPanel
+        onClose={() => {
+          location.hash = ''
+          setShowAdmin(false)
+        }}
+      />
+    )
+  }
+
   return (
     <div className="board">
       <div className="board__frame">
@@ -203,6 +256,7 @@ export default function App() {
           <p className="board__signature">
             {name ? (
               <>
+                <Avatar name={name} url={avatarUrl} size={24} className="board__avatar" />
                 signed as <strong>{name}</strong>
                 <button
                   type="button"
@@ -259,11 +313,19 @@ export default function App() {
             </Fragment>
           ))}
         </div>
+
+        <Feed
+          name={name}
+          avatarUrl={avatarUrl}
+          canModerate={unlocked}
+          onNeedName={() => setPrompt('required')}
+        />
       </div>
 
       {prompt && (
         <NamePrompt
-          initial={name ?? ''}
+          initialName={name ?? ''}
+          initialAvatarUrl={avatarUrl}
           required={prompt === 'required'}
           onSave={handleSaveName}
           onSkip={handleSkipName}

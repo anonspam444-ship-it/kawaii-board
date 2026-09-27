@@ -1,0 +1,632 @@
+/* ============================================================
+   The feed — one shared timeline under the two lists.
+
+   Deliberately the most legible surface on the page: the lists are themed
+   props, but this is running text that people actually read, so it's warm
+   paper and white cards rather than charred wood or pink stickers.
+   ============================================================ */
+
+.feed {
+  margin: clamp(18px, 3.5vw, 30px) 0 0;
+  padding: clamp(16px, 3vw, 28px) clamp(14px, 3vw, 26px) clamp(20px, 3vw, 30px);
+  border: 3px solid #c9a878;
+  border-radius: 14px;
+  color: #3a2a1c;
+  background:
+    radial-gradient(circle at 15% 0%, #fffdf7, transparent 55%),
+    linear-gradient(180deg, #f8f0e2, #eee2cd);
+  box-shadow:
+    inset 0 0 30px rgba(120, 80, 40, 0.14),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.feed__title {
+  margin: 0;
+  text-align: center;
+  font-family: 'Baloo 2', system-ui, cursive;
+  font-weight: 800;
+  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  letter-spacing: 0.02em;
+  color: #8a5a2b;
+  text-shadow: 0 2px 0 #fff, 0 3px 6px rgba(120, 80, 40, 0.25);
+}
+
+.feed__blurb {
+  margin: 2px 0 clamp(14px, 2.5vw, 20px);
+  text-align: center;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: #97795c;
+}
+
+/* Running text wants a measure, not the full 1100px of the board. */
+.composer,
+.feed__posts,
+.feed__empty,
+.feed__error {
+  max-width: 660px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.feed__error {
+  margin: 0 auto 14px;
+  padding: 8px 12px;
+  text-align: center;
+  border: 1px solid rgba(160, 18, 18, 0.35);
+  border-radius: 8px;
+  color: #7a1010;
+  background: rgba(224, 27, 27, 0.1);
+}
+
+.feed__empty {
+  margin: 18px auto 0;
+  text-align: center;
+  font-style: italic;
+  color: #97795c;
+}
+
+/* ---- composer ------------------------------------------------------------ */
+.composer {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border: 2px solid #e0cdae;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(120, 80, 40, 0.14);
+}
+
+.composer__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.composer__input {
+  width: 100%;
+  padding: 8px 2px;
+  border: none;
+  border-bottom: 2px solid #f0e4d0;
+  font-family: 'Nunito', sans-serif;
+  font-size: 1.02rem;
+  line-height: 1.45;
+  color: #3a2a1c;
+  background: none;
+  resize: vertical;
+  min-height: 52px;
+}
+
+.composer__input::placeholder {
+  color: #b39b7d;
+}
+
+.composer__input:focus {
+  outline: none;
+  border-bottom-color: var(--worth-pink);
+}
+
+.composer__preview {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.composer__preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 10px;
+  border: 2px solid #f0e4d0;
+}
+
+.composer__drop {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(20, 10, 4, 0.72);
+}
+
+.composer__drop:hover {
+  background: rgba(20, 10, 4, 0.9);
+}
+
+.composer__error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #a31212;
+}
+
+/* ---- toolbar ------------------------------------------------------------- */
+.composer__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.composer__tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer__emoji {
+  padding: 7px 12px;
+  border: 2px solid #ecdcc2;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  color: #8a5a2b;
+  background: #fdf7ec;
+}
+
+.composer__emoji span {
+  font-size: 1.1rem;
+  vertical-align: -1px;
+}
+
+.composer__emoji:hover {
+  border-color: var(--worth-pink);
+  color: var(--worth-pink-deep);
+}
+
+/* Held open while the grid is showing, so the button reads as a toggle. */
+.composer__emoji--on {
+  border-color: var(--worth-pink);
+  color: var(--worth-pink-deep);
+  background: #fff1f6;
+}
+
+.composer__attach {
+  padding: 7px 12px;
+  border: 2px solid #ecdcc2;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #8a5a2b;
+  background: #fdf7ec;
+}
+
+.composer__attach:hover {
+  border-color: var(--worth-pink);
+  color: var(--worth-pink-deep);
+}
+
+.composer__count {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: #b39b7d;
+}
+
+.composer__count--over {
+  color: #a31212;
+  font-weight: 700;
+}
+
+.composer__send {
+  margin-left: auto;
+  padding: 9px 20px;
+  border: none;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(180deg, #ffb0d0, #ff87ba);
+  box-shadow: 0 3px 0 #e84f8c;
+  transition: transform 0.08s ease;
+}
+
+/* When the counter is showing it takes the auto margin, so the button mustn't
+   also claim it or they end up stacked apart. */
+.composer__count + .composer__send {
+  margin-left: 0;
+}
+
+.composer__send:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #e84f8c;
+}
+
+.composer__send:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: 0 3px 0 #d8b6c6;
+}
+
+/* ---- posts --------------------------------------------------------------- */
+.feed__posts {
+  list-style: none;
+  margin: 16px auto 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.post {
+  padding: 14px 16px;
+  border: 2px solid #ecdcc2;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(120, 80, 40, 0.12);
+}
+
+.post__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.post__who {
+  flex: 1;
+  min-width: 0;
+}
+
+.post__name {
+  margin: 0;
+  font-weight: 800;
+  font-size: 0.98rem;
+  color: #3a2a1c;
+  word-break: break-word;
+}
+
+.post__time {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #a98d6e;
+}
+
+.post__menu,
+.post__danger,
+.post__quiet {
+  flex: 0 0 auto;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.post__menu {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: #b39b7d;
+  background: none;
+  opacity: 0.7;
+}
+
+.post__menu:hover {
+  opacity: 1;
+  color: #a31212;
+  background: rgba(163, 18, 18, 0.08);
+}
+
+.post__confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.post__danger {
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  background: #a31212;
+}
+
+.post__quiet {
+  padding: 6px 8px;
+  font-size: 0.82rem;
+  color: #97795c;
+  background: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.post__body {
+  margin: 10px 0 0;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  /* Posts are typed by people, so blank lines they put in are meaningful. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #33261a;
+}
+
+.post__image {
+  display: block;
+  margin: 12px 0 0;
+}
+
+.post__image img {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 2px solid #f0e4d0;
+}
+
+.post__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 2px solid #f6ecda;
+}
+
+.post__like,
+.post__reply {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #8a6b4d;
+  background: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.post__like:hover {
+  color: var(--worth-pink-deep);
+  background: rgba(232, 79, 140, 0.1);
+}
+
+.post__like--on {
+  color: var(--worth-pink-deep);
+}
+
+.post__reply:hover {
+  color: #3f7fc0;
+  background: rgba(63, 127, 192, 0.1);
+}
+
+/* ---- comments ------------------------------------------------------------ */
+.post__thread {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px dashed #f0e4d0;
+}
+
+.post__comments {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.comment__body {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #f9f2e6;
+}
+
+.comment__meta {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #8a6b4d;
+}
+
+.comment__meta strong {
+  color: #3a2a1c;
+  word-break: break-word;
+}
+
+.comment__time {
+  color: #a98d6e;
+}
+
+.comment__text {
+  margin: 2px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.comment__delete {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #b39b7d;
+  background: none;
+  opacity: 0.6;
+}
+
+.comment__delete:hover {
+  opacity: 1;
+  color: #a31212;
+}
+
+.comment-form {
+  display: flex;
+  gap: 8px;
+}
+
+.comment-form__input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 13px;
+  border: 2px solid #ecdcc2;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: #3a2a1c;
+  background: #fffdf8;
+}
+
+.comment-form__input::placeholder {
+  color: #b39b7d;
+}
+
+.comment-form__input:focus {
+  outline: none;
+  border-color: var(--worth-pink);
+}
+
+.comment-form__send {
+  flex: 0 0 auto;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  background: #8a5a2b;
+}
+
+.comment-form__send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---- narrow screens ------------------------------------------------------ */
+@media (max-width: 520px) {
+  .composer {
+    gap: 9px;
+    padding: 11px;
+  }
+
+  .composer__avatar {
+    display: none; /* the box is more useful than knowing it's you */
+  }
+
+  .composer__toolbar {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---- emoji --------------------------------------------------------------- */
+/* Sized in em so emoji track the text they sit in — slightly taller than the
+   line, which is what makes them read as emoji rather than as pasted images. */
+.emoji {
+  display: inline-block;
+  width: 1.45em;
+  height: 1.45em;
+  margin: 0 0.06em;
+  vertical-align: -0.35em;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* ---- the picker ---------------------------------------------------------- */
+.picker {
+  position: absolute;
+  z-index: 20;
+  /* top/left are explicit on purpose. Both containing blocks here are flex
+     containers, and an absolutely positioned child of a flex container does
+     NOT fall back to where it would have sat in flow — it anchors to the
+     container's content box. With `top: auto` the grid landed on top of the
+     textarea instead of below the toolbar. */
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  padding: 10px;
+  border: 2px solid #e0cdae;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(60, 40, 20, 0.35);
+}
+
+.picker__grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  max-height: 230px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--worth-pink) rgba(232, 79, 140, 0.12);
+}
+
+.picker__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 4px;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  background: none;
+  transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.picker__item:hover {
+  background: #fff1f6;
+  transform: scale(1.12);
+}
+
+.picker__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* The composer and each reply form are the positioning context for their own
+   picker, so it opens under the box it belongs to. */
+.composer__main,
+.comment-form {
+  position: relative;
+}
+
+.comment-form__emoji {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+}
+
+@media (max-width: 520px) {
+  .picker__grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  /* Full width of the form so the grid can't push off-screen. */
+  .picker {
+    right: 0;
+  }
+}

@@ -5,11 +5,16 @@ import express from 'express'
 import cors from 'cors'
 import { supabase } from './supabase.js'
 import {
+  adminEnabled,
   requireAuth,
   requireAuthForReads,
   requireStreakAuth,
   streakUsesDefaultPassword,
 } from './auth.js'
+import { dbError } from './dbError.js'
+import { feedRouter } from './feed.js'
+import { profileRouter } from './profiles.js'
+import { visitsRouter, adminRouter } from './visits.js'
 
 const app = express()
 
@@ -23,7 +28,11 @@ if (process.env.TRUST_PROXY) {
 }
 
 app.use(cors())
-app.use(express.json())
+
+// Deliberately small. The two routes that accept an uploaded image install
+// their own 9MB parser, so a large body can only be aimed where one is
+// expected rather than at every endpoint on the server.
+app.use(express.json({ limit: '128kb' }))
 
 const LISTS = ['worth', 'worst']
 const MAX_TEXT = 200 // matches the client's input maxLength
@@ -54,23 +63,6 @@ function readAuthor(author) {
 // fault, so report it as a miss rather than a 500.
 const isBadUuid = (error) => error?.code === '22P02'
 
-// A database that hasn't had the migration run reports a table PostgREST can't
-// see (PGRST205) or a column Postgres doesn't know (42703). Both mean the same
-// thing, and a bare driver message doesn't tell anyone what to do about it.
-function dbError(error) {
-  // PGRST205 = unknown table, PGRST204 = unknown column, 42703 = Postgres's
-  // own "column does not exist". The message test catches the rest, since
-  // PostgREST words it as "Could not find the 'author' column of 'entries'".
-  const missingSchema =
-    error?.code === 'PGRST205' ||
-    error?.code === 'PGRST204' ||
-    error?.code === '42703' ||
-    /Could not find the\b[^]*\b(table|column)\b/i.test(error?.message ?? '')
-  return missingSchema
-    ? `${error.message} — run migrations/002_authors_and_streak.sql`
-    : error.message
-}
-
 // Health check — handy for deploys / uptime pings. Deliberately unauthenticated
 // so uptime pingers don't need the passphrase; it reveals nothing.
 app.get('/api/health', (req, res) => res.json({ ok: true }))
@@ -82,6 +74,16 @@ app.post('/api/session', requireAuth, (req, res) => res.json({ ok: true }))
 app.post('/api/streak/session', requireStreakAuth, (req, res) => res.json({ ok: true }))
 
 const readGuards = requireAuthForReads ? [requireAuth] : []
+
+// ============================================================
+// feed, profiles, visit log
+// ============================================================
+// Mounted before the entries routes purely for readability; Express matches on
+// path, so the order between these is not significant.
+app.use('/api/feed', feedRouter)
+app.use('/api/profile', profileRouter)
+app.use('/api/visit', visitsRouter)
+app.use('/api/admin', adminRouter)
 
 // ============================================================
 // entries
@@ -316,6 +318,9 @@ app.listen(port, () => {
   console.log(`[kawaii-board] API listening on http://localhost:${port}`)
   console.log(
     `[kawaii-board] auth: writes locked, reads ${requireAuthForReads ? 'locked' : 'public'}`,
+  )
+  console.log(
+    `[kawaii-board] feed: open to anyone · visit log: ${adminEnabled ? 'on' : 'OFF (set ADMIN_PASSWORD)'}`,
   )
   if (streakUsesDefaultPassword) {
     console.warn(

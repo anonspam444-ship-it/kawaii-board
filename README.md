@@ -17,15 +17,21 @@ Above the lists sit two more things:
   in CSS and SVG rather than fetched from anywhere.
 - **A no-contact streak counter** — one person's daily "did you?" check-in,
   behind its own passphrase.
+- **The Feed** — one shared timeline under the lists. Anyone can post text and
+  pictures, like, and reply. No sign-up.
 
-Every entry is signed. There are no accounts: the browser asks for a name once
-and keeps it in `localStorage`.
+Every entry and post is signed. There are still no accounts: the browser asks
+for a name and (optionally) a picture once, and remembers who it is.
+
+Visits are logged with their IP address, readable only by whoever holds
+`ADMIN_PASSWORD`, at `/#admin`.
 
 ```
 kawaii-board/
 ├── client/        React frontend (Vite)
 ├── server/        Node/Express backend
 ├── migrations/    incremental SQL for databases that already exist
+├── scripts/       one-off setup (the Storage bucket)
 ├── supabase.sql   full schema: entries + streak + RLS
 ├── render.yaml    one-service deploy blueprint
 └── package.json   root convenience scripts (npm workspaces)
@@ -101,6 +107,19 @@ editable and the unlock box is hidden.
    > bypasses RLS, which is what this server needs. The publishable key is
    > never used here. Older `service_role` keys under "Legacy API keys" work
    > too, and `SUPABASE_SERVICE_ROLE_KEY` is still accepted as a variable name.
+
+### 3b. Create the Storage bucket
+
+Post images and avatars go to Supabase Storage, which can't be set up from the
+SQL editor. Once `server/.env` exists (next step), run:
+
+```bash
+cd server && node ../scripts/setup-storage.mjs
+```
+
+It creates a public-read `uploads` bucket, or updates it if it's already there.
+Idempotent, so re-running is fine. Skip it and image uploads fail with
+*"image storage is not set up"* while everything else keeps working.
 
 ### 4. Configure the server
 
@@ -185,6 +204,122 @@ a second, using a compare-and-swap on `last_check_in` so a double-tap or a
 retried request can't award two days for one press. Resetting takes two
 deliberate clicks in the UI.
 
+### The feed
+
+One shared timeline under the two lists. **Anyone can post** — there is no
+credential for writing here, only a `client_id` the browser generated about
+itself and keeps in `localStorage`. That is what "one big feed anyone can post
+to" means, and it is worth being explicit about the consequences:
+
+- The **rate limits** in `server/rateLimit.js` are the only thing between this
+  and a spam cannon: 8 posts, 30 comments and 200 likes per IP per 10 minutes.
+  They are in-memory and per-process, so they reset on restart and don't
+  coordinate across replicas. Put something real in front if this gets popular.
+- `client_id` is **not** authentication. Anyone can send someone else's and
+  thereby delete their post or like as them. It exists so that "one like per
+  person" and "delete your own post" have something to key on, not to prove
+  anything. Whoever holds the board passphrase can delete anything, which is
+  the actual moderation story.
+- Posts are capped at 500 characters, comments at 300, images at 6MB decoded.
+
+One like per person per post is enforced by the composite primary key on
+`post_likes`, not by an application check — a double-tap is a key conflict, so
+no amount of retrying inflates a count. The like endpoint returns the
+authoritative count rather than letting the client add one, since other people
+are liking the same post at the same time.
+
+Pictures are downscaled in the browser before upload (`client/src/lib/image.js`)
+and sent as base64 data URLs rather than multipart form data — that costs ~33%
+in transfer and saves a dependency, and everything goes through a canvas, so
+EXIF and embedded colour profiles don't survive the re-encode. Only the two
+routes that accept an image install a 9MB body parser; the global one stays at
+128kb so a large body can't be aimed anywhere else.
+
+### Custom emoji
+
+The composer has a toolbar with an emoji picker; the 23 images live in
+`client/public/emojis/` and are served as static assets at `/emojis/<file>`.
+
+A post stores the **shortcode** (`:dog:`) as plain text — never HTML. Rendering
+resolves it to an `<img>` at display time (`RichText.jsx`), building React nodes
+from parsed parts rather than assembling a markup string. On a feed anyone can
+write to, that is the difference between a toy and an XSS hole.
+
+The match pattern is built from the known names in `client/src/emoji.js`, so an
+ordinary colon can't become an image: `12:00:30` has no emoji called `00` and is
+left alone. Names are the only human-readable handle (the filenames are opaque
+export ids) — rename them freely in that one file, and any post using an old
+shortcode simply shows it as text again.
+
+Clicking an emoji inserts it **at the caret**, not at the end, and leaves the
+caret after the token. The picker fires on `mousedown` rather than `click`
+because the textarea would lose its selection to the focus change first, and
+the insertion point would be gone by the time a click landed.
+
+### Profiles and avatars
+
+The name prompt takes a picture as well as a name. Unlike entry bylines — which
+snapshot the name at pin time — feed posts reference the profile **live**, so
+changing your picture updates every post you've made.
+
+The avatar URL is cached in `localStorage`, but the `profiles` row is the source
+of truth: a browser that kept its `client_id` and lost the cache recovers both
+name and picture from `GET /api/profile/:clientId` on load.
+
+Same honour system as everything else here: sending someone else's `client_id`
+overwrites their profile.
+
+### The visit log
+
+Every page load records IP, user agent, path, referrer, and whatever identity
+the browser is carrying. Readable at **`/#admin`** — not linked from anywhere,
+though the guard is the passphrase and not the obscurity. The admin key is held
+in memory only, never in `localStorage`, so closing the tab forgets it.
+
+`GET /api/admin/visits.log` returns the same data as a plain-text log:
+
+```bash
+curl -H "X-Admin-Key: $ADMIN_PASSWORD" \
+  https://your-app.onrender.com/api/admin/visits.log > visits.log
+```
+
+Two deliberate choices:
+
+- **Stored in Postgres, not a file.** A file on Render is wiped on every deploy
+  and restart, which for an append-only log is the one thing it must not do.
+  The plain-text endpoint gives you a file whenever you want one.
+- **Written from a beacon the client fires**, not from middleware on the HTML
+  response. That works identically behind Vite in development (where Express
+  never serves the page) and lets the browser say who it thinks it is. The
+  trade is that a visitor with JavaScript off leaves no trace — which also
+  means the log is mostly real people rather than crawlers.
+
+**Which IP gets recorded** is its own small trap. `req.ip` is wrong here: with
+`trust proxy` set to a hop count, Express counts from the *right* of
+`X-Forwarded-For` and returns the first address outside the trusted hops, which
+is an intermediate proxy whenever more hops sit in front than the count allows.
+`req.ips` is no better — on Express 5 it contains only the addresses inside the
+trust boundary, so for `203.0.113.42, 10.0.0.1` with `trust proxy = 1` it
+returns `["10.0.0.1"]` and the real client never appears.
+
+So the log reads the leftmost `X-Forwarded-For` entry directly, and only when
+the app has been told a proxy is in front. That entry is forgeable, which is
+fine for a log and not fine anywhere else: the passphrase throttle and the feed
+rate limiters still key on `req.ip`, so a fabricated header can lie in the log
+but can't slip past a limit.
+
+IPv4-mapped addresses (`::ffff:127.0.0.1`) are flattened to `127.0.0.1` on the
+way in — otherwise one visitor arriving over IPv4 and IPv6 on different
+requests gets counted as two unique IPs.
+
+On localhost every visit logs as `127.0.0.1` or `::1`, because it genuinely is
+loopback — the request never leaves the machine. Real addresses only appear
+once it's deployed behind a proxy.
+
+Refreshes within 60 seconds from the same IP are deduplicated. Logged IPs are
+personal data; fine for a board among friends, but worth a line in a privacy
+notice if this ever gets a real audience.
+
 ### The countdown
 
 Counts down to `new Date(2026, 9, 6, 0, 0, 0)` — midnight opening 6 October, in
@@ -224,14 +359,20 @@ There are no user accounts — two passphrases guard the two writable things.
 | ------------------------ | ------------ | ----------------------------------------------- |
 | `BOARD_PASSWORD`         | —            | Required. The board passphrase; no default.     |
 | `STREAK_PASSWORD`        | in `auth.js` | The streak counter's own passphrase.            |
+| `ADMIN_PASSWORD`         | —            | The visit log. Unset disables it entirely.      |
 | `REQUIRE_AUTH_FOR_READS` | `false`      | `true` also gates `GET`, for a private board.   |
 | `TRUST_PROXY`            | unset        | Set behind a reverse proxy (see below).         |
 
-The two passphrases are deliberately independent, and are throttled
+The three passphrases are deliberately independent, and are throttled
 independently too — a wrong streak guess can't lock anyone out of pinning
 entries. `STREAK_PASSWORD` is the one credential with a fallback baked into
 `server/auth.js`; that default is public, so override it on any real deploy.
 The server prints a warning at startup when it's still using it.
+
+`ADMIN_PASSWORD` gets no fallback on purpose. Guessing the streak passphrase
+lets someone spoil a counter; guessing this one exposes other people's IP
+addresses, so an unset value disables the routes rather than falling back to
+anything publishable.
 
 > ⚠️ `cors()` is wide open. That's intentional and harmless here — a bearer
 > token isn't a cookie, so a browser won't attach it to another site's requests
@@ -252,8 +393,24 @@ The server prints a warning at startup when it's still using it.
 | `POST`   | `/api/streak/reset`     | `{ today }`                | updated `Streak`   | **streak**          |
 | `POST`   | `/api/streak/session`   | —                          | `{ ok: true }`     | **streak**          |
 | `GET`    | `/api/health`           | —                          | `{ ok: true }`     | none                |
+| `GET`    | `/api/feed`             | —                          | `Post[]`           | none                |
+| `POST`   | `/api/feed`             | `{ client_id, body, image? }` | created `Post`  | none                |
+| `DELETE` | `/api/feed/:id`         | —                          | `204 No Content`   | own² or **board**   |
+| `POST`   | `/api/feed/:id/like`    | `{ client_id }`            | `{ likes, liked_by_me }` | none          |
+| `POST`   | `/api/feed/:id/comments` | `{ client_id, body }`     | created `Comment`  | none                |
+| `DELETE` | `/api/feed/:id/comments/:cid` | —                    | `204 No Content`   | own² or **board**   |
+| `GET`    | `/api/profile/:clientId` | —                         | `Profile`          | none                |
+| `PUT`    | `/api/profile`          | `{ client_id, name, avatar? }` | `Profile`      | none                |
+| `POST`   | `/api/visit`            | `{ client_id?, name?, path? }` | `204`          | none                |
+| `GET`    | `/api/admin/visits`     | —                          | summary + rows     | **admin**           |
+| `GET`    | `/api/admin/visits.log` | —                          | `text/plain` log   | **admin**           |
 
 ¹ Unless `REQUIRE_AUTH_FOR_READS=true`.
+² "own" means the request's `X-Client-Id` matches the row's `client_id`. On the
+honour system — see *The feed* below.
+
+**admin** = `X-Admin-Key: <ADMIN_PASSWORD>`. With `ADMIN_PASSWORD` unset those
+two routes return `503` and nothing else.
 
 **board** = `Authorization: Bearer <BOARD_PASSWORD>`.
 **streak** = `X-Streak-Key: <STREAK_PASSWORD>`. Two different headers so a
