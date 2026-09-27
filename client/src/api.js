@@ -208,11 +208,16 @@ export const getFeed = () =>
     ? []
     : request(`/api/feed?client_id=${encodeURIComponent(getClientId())}`, { auth: 'none' })
 
-export const createPost = ({ body, image }) =>
+export const createPost = ({ body, image, feeling }) =>
   request('/api/feed', {
     auth: 'none',
     method: 'POST',
-    body: JSON.stringify({ client_id: getClientId(), body, ...(image ? { image } : {}) }),
+    body: JSON.stringify({
+      client_id: getClientId(),
+      body,
+      ...(image ? { image } : {}),
+      ...(feeling ? { feeling } : {}),
+    }),
   })
 
 export const deletePost = (id) =>

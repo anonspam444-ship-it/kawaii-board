@@ -167,3 +167,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* The browser column carries a parsed string like "Chrome 141 · Windows", so
+   it wants room to breathe rather than the ellipsis the old raw-UA column got.
+   The full user agent is on the cell's title attribute. */
+.admin__browser {
+  min-width: 190px;
+  white-space: nowrap;
+}
+
+/* Referrers are the long ones now; give them the truncation instead. */
+.admin__wrap {
+  max-width: 260px;
+}

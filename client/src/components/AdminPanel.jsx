@@ -107,7 +107,7 @@ export default function AdminPanel({ onClose }) {
                 <th>Name</th>
                 <th>Path</th>
                 <th>Referrer</th>
-                <th>User agent</th>
+                <th>Browser</th>
               </tr>
             </thead>
             <tbody>
@@ -118,7 +118,12 @@ export default function AdminPanel({ onClose }) {
                   <td>{row.name ?? '—'}</td>
                   <td>{row.path ?? '—'}</td>
                   <td className="admin__wrap">{row.referrer ?? '—'}</td>
-                  <td className="admin__wrap">{row.user_agent ?? '—'}</td>
+                  {/* Parsed server-side. Every browser's raw UA starts
+                      "Mozilla/5.0", so the unparsed string made everyone look
+                      identical; it's still here on hover. */}
+                  <td className="admin__browser" title={row.user_agent ?? ''}>
+                    {row.browser ?? row.user_agent ?? '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -10,32 +10,37 @@
 // here are the only human-readable handle. Rename freely; existing posts that
 // used an old shortcode will simply show it as text.
 export const EMOJI = [
-  { name: 'smile', file: '1353909602424717392.webp' },
-  { name: 'dog', file: '1539300842149253290.webp' },
-  { name: 'worried', file: '406565199273787412.webp' },
-  { name: 'rude', file: '406565298611945472.webp' },
-  { name: 'unamused', file: '406566105478332436.webp' },
-  { name: 'facepalm', file: '406566224827383809.webp' },
-  { name: 'cringe', file: '406566284961120257.webp' },
-  { name: 'blank', file: '406566310114230283.webp' },
-  { name: 'sideeye', file: '406810593962622988.webp' },
-  { name: 'happy', file: '418166535257849866.webp' },
-  { name: 'grin', file: '418565953232568360.webp' },
-  { name: 'neutral', file: '469907913411133442.webp' },
-  { name: 'late', file: '475701017862995968.webp' },
-  { name: 'laugh', file: '475701032974811157.webp' },
-  { name: 'gasp', file: '475701035369758721.webp' },
-  { name: 'wave', file: '503326004027326509.webp' },
-  { name: 'oops', file: '503329647124283393.webp' },
-  { name: 'stern', file: '503334480329834506.webp' },
-  { name: 'sweat', file: '503339616921714716.webp' },
-  { name: 'sun', file: '503339639554310154.webp' },
-  { name: 'idea', file: '503339640435114015.webp' },
-  { name: 'fist', file: '503345026261319681.webp' },
-  { name: 'devil', file: '503349492578517004.webp' },
+  { name: 'smile', mood: 'Fine', file: '1353909602424717392.webp' },
+  { name: 'dog', mood: 'Loyal', file: '1539300842149253290.webp' },
+  { name: 'worried', mood: 'Worried', file: '406565199273787412.webp' },
+  { name: 'rude', mood: 'Done', file: '406565298611945472.webp' },
+  { name: 'unamused', mood: 'Unamused', file: '406566105478332436.webp' },
+  { name: 'facepalm', mood: 'Over It', file: '406566224827383809.webp' },
+  { name: 'cringe', mood: 'Cringe', file: '406566284961120257.webp' },
+  { name: 'blank', mood: 'Blank', file: '406566310114230283.webp' },
+  { name: 'sideeye', mood: 'Suspicious', file: '406810593962622988.webp' },
+  { name: 'happy', mood: 'Happy', file: '418166535257849866.webp' },
+  { name: 'grin', mood: 'Pleased', file: '418565953232568360.webp' },
+  { name: 'neutral', mood: 'Neutral', file: '469907913411133442.webp' },
+  { name: 'late', mood: 'Late', file: '475701017862995968.webp' },
+  { name: 'laugh', mood: 'Amused', file: '475701032974811157.webp' },
+  { name: 'gasp', mood: 'Shook', file: '475701035369758721.webp' },
+  { name: 'wave', mood: 'Friendly', file: '503326004027326509.webp' },
+  { name: 'oops', mood: 'Embarrassed', file: '503329647124283393.webp' },
+  { name: 'stern', mood: 'Stern', file: '503334480329834506.webp' },
+  { name: 'sweat', mood: 'Nervous', file: '503339616921714716.webp' },
+  { name: 'sun', mood: 'Radiant', file: '503339639554310154.webp' },
+  { name: 'idea', mood: 'Smart', file: '503339640435114015.webp' },
+  { name: 'fist', mood: 'Ready', file: '503345026261319681.webp' },
+  { name: 'devil', mood: 'Evil', file: '503349492578517004.webp' },
 ]
 
 export const EMOJI_BY_NAME = new Map(EMOJI.map((e) => [e.name, e]))
+
+// A post carries one of these as its feeling. `mood` is the word shown beside
+// the picture ("FEELING: Smart"); `name` is what's stored, so the wording can
+// change without rewriting any rows.
+export const moodFor = (name) => EMOJI_BY_NAME.get(name) ?? null
 
 export const emojiUrl = (file) => `/emojis/${file}`
 

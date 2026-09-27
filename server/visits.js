@@ -101,6 +101,68 @@ visitsRouter.post(
   },
 )
 
+// Turns a user-agent string into something a person can read.
+//
+// Worth saying why this is needed: *every* mainstream browser's UA begins
+// "Mozilla/5.0", a compatibility fiction from the 90s that nobody has been
+// able to retire. So a raw UA column looks like everyone is running the same
+// browser. The actual product is buried later in the string, and the checks
+// below have to run in a specific order because browsers impersonate each
+// other on purpose:
+//
+//   Edge     claims Chrome and Safari  -> must be tested first
+//   Chrome   claims Safari             -> before Safari
+//   Safari   claims nothing else       -> last
+//
+// Firefox is the honest one (its token is "Firefox/" and it carries "rv:").
+const BROWSERS = [
+  [/Edg(?:e|A|iOS)?\/([\d.]+)/, 'Edge'],
+  [/OPR\/([\d.]+)/, 'Opera'],
+  [/SamsungBrowser\/([\d.]+)/, 'Samsung Internet'],
+  [/Firefox\/([\d.]+)/, 'Firefox'],
+  [/FxiOS\/([\d.]+)/, 'Firefox'],
+  [/CriOS\/([\d.]+)/, 'Chrome'],
+  [/Chrome\/([\d.]+)/, 'Chrome'],
+  [/Version\/([\d.]+).*Safari/, 'Safari'],
+  [/HeadlessChrome\/([\d.]+)/, 'Chrome (headless)'],
+  [/curl\/([\d.]+)/, 'curl'],
+]
+
+const PLATFORMS = [
+  [/Windows NT 10\.0/, 'Windows'],
+  [/Windows NT/, 'Windows'],
+  [/iPhone|iPad|iPod/, 'iOS'],
+  [/Android[ /]?([\d.]+)?/, 'Android'],
+  [/Mac OS X/, 'macOS'],
+  [/CrOS/, 'ChromeOS'],
+  [/Linux/, 'Linux'],
+]
+
+export function describeAgent(ua) {
+  if (typeof ua !== 'string' || !ua.trim()) return null
+
+  let browser = null
+  for (const [pattern, name] of BROWSERS) {
+    const match = pattern.exec(ua)
+    if (match) {
+      // Major version only; the rest is noise in a table.
+      browser = match[1] ? `${name} ${match[1].split('.')[0]}` : name
+      break
+    }
+  }
+
+  let platform = null
+  for (const [pattern, name] of PLATFORMS) {
+    if (pattern.test(ua)) {
+      platform = name
+      break
+    }
+  }
+
+  if (!browser && !platform) return null
+  return [browser, platform].filter(Boolean).join(' · ')
+}
+
 // Reads the log and works out who each row belongs to.
 //
 // A visit is recorded the moment a page loads, which is before anyone has had
@@ -145,6 +207,9 @@ async function loadVisits(limit) {
       name: names.get(row.client_id) ?? row.name ?? null,
       logged_name: row.name ?? null,
       named_later: Boolean(!row.name && names.get(row.client_id)),
+      // "Chrome 141 · Windows". The raw string stays on the row so the panel
+      // can still show it in full on hover.
+      browser: describeAgent(row.user_agent),
     })),
   }
 }
@@ -199,6 +264,7 @@ adminRouter.get('/visits.log', requireAdmin, async (req, res) => {
       row.client_id ?? '-',
       row.path ?? '-',
       `ref=${row.referrer ?? '-'}`,
+      `browser="${row.browser ?? '-'}"`,
       `ua="${(row.user_agent ?? '-').replace(/"/g, "'")}"`,
     ].join(' '),
   )
@@ -206,7 +272,7 @@ adminRouter.get('/visits.log', requireAdmin, async (req, res) => {
   res.type('text/plain').send(
     `# kawaii-board visit log — ${data.length} most recent, newest first\n` +
       `# generated ${new Date().toISOString()}\n` +
-      `# when ip name client_id path referrer user_agent\n` +
+      `# when ip name client_id path referrer browser user_agent\n` +
       lines.join('\n') +
       '\n',
   )

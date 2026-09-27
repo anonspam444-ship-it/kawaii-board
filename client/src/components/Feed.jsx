@@ -15,7 +15,7 @@ import '../styles/feed.css'
 // One shared timeline, open to everyone. Keeps its own state and its own error
 // line rather than routing through App: a failed like shouldn't put a banner
 // over the quest board, and the board's errors shouldn't appear down here.
-export default function Feed({ name, avatarUrl, canModerate, onNeedName }) {
+export default function Feed({ name, avatarUrl, onNeedName, refresh = 0 }) {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -30,7 +30,9 @@ export default function Feed({ name, avatarUrl, canModerate, onNeedName }) {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [])
+  // `refresh` is bumped by App when a notification arrives, so a new post
+  // from someone else appears without anyone hitting reload.
+  useEffect(load, [refresh])
 
   async function handlePost({ body, image }) {
     const created = await createPost({ body, image })
@@ -143,7 +145,6 @@ export default function Feed({ name, avatarUrl, canModerate, onNeedName }) {
             <PostCard
               key={post.id}
               post={post}
-              canModerate={canModerate}
               hasName={Boolean(name)}
               onNeedName={onNeedName}
               onLike={handleLike}

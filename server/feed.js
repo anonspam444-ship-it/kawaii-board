@@ -1,7 +1,6 @@
 import express from 'express'
 import { supabase } from './supabase.js'
 import { dbError } from './dbError.js'
-import { hasBoardPassword } from './auth.js'
 import { rateLimit } from './rateLimit.js'
 import { uploadDataUrl, removeByUrl } from './uploads.js'
 import { recordEvent } from './events.js'
@@ -16,6 +15,20 @@ export const feedRouter = express.Router()
 
 export const MAX_BODY = 500
 export const MAX_COMMENT = 300
+
+// Feelings are stored as the emoji key. The server doesn't hold the list —
+// that lives in the client, which is the only place that needs to render it —
+// so this only checks the shape. An unknown key renders as no feeling.
+const FEELING = /^[a-z][a-z0-9-]{0,23}$/
+
+function readFeeling(value) {
+  if (value === undefined || value === null || value === '') return { value: null }
+  if (typeof value !== 'string') return { error: 'feeling must be text' }
+  const trimmed = value.trim().toLowerCase()
+  if (!trimmed) return { value: null }
+  if (!FEELING.test(trimmed)) return { error: 'feeling is not a valid name' }
+  return { value: trimmed }
+}
 
 // Only applied to the routes that can carry an image; the global parser stays
 // small so a 9MB body can't be aimed at every other endpoint on the server.
@@ -54,7 +67,7 @@ feedRouter.get('/', async (req, res) => {
   const { data: posts, error } = await supabase
     .from('posts')
     .select(
-      'id, client_id, body, image_url, created_at, ' +
+      'id, client_id, body, image_url, feeling, created_at, ' +
         'post_likes ( client_id ), ' +
         'post_comments ( id, client_id, body, created_at )',
     )
@@ -102,6 +115,7 @@ feedRouter.get('/', async (req, res) => {
       id: post.id,
       body: post.body,
       image_url: post.image_url,
+      feeling: post.feeling,
       created_at: post.created_at,
       author: author(post.client_id),
       likes: post.post_likes.length,
@@ -128,7 +142,7 @@ feedRouter.get('/', async (req, res) => {
 // POST /api/feed — { client_id, body, image } → created post
 // ---------------------------------------------------------------------------
 feedRouter.post('/', postLimit, jsonWithImage, async (req, res) => {
-  const { client_id: rawClientId, body, image } = req.body ?? {}
+  const { client_id: rawClientId, body, image, feeling } = req.body ?? {}
 
   const clientId = readClientId(rawClientId)
   if (!clientId) return res.status(400).json({ error: 'client_id must be a uuid' })
@@ -137,8 +151,14 @@ feedRouter.post('/', postLimit, jsonWithImage, async (req, res) => {
   if (text.length > MAX_BODY) {
     return res.status(400).json({ error: `post must be ${MAX_BODY} characters or fewer` })
   }
-  if (!text && !image) {
-    return res.status(400).json({ error: 'a post needs some text or a picture' })
+
+  const mood = readFeeling(feeling)
+  if (mood.error) return res.status(400).json({ error: mood.error })
+
+  // Checked against the cleaned value: "   " as a feeling is absence, not
+  // content, and letting it through would hit the database constraint instead.
+  if (!text && !image && !mood.value) {
+    return res.status(400).json({ error: 'a post needs some text, a picture or a feeling' })
   }
 
   let imageUrl = null
@@ -150,7 +170,7 @@ feedRouter.post('/', postLimit, jsonWithImage, async (req, res) => {
 
   const { data, error } = await supabase
     .from('posts')
-    .insert({ client_id: clientId, body: text, image_url: imageUrl })
+    .insert({ client_id: clientId, body: text, image_url: imageUrl, feeling: mood.value })
     .select()
     .single()
 
@@ -177,11 +197,16 @@ feedRouter.post('/', postLimit, jsonWithImage, async (req, res) => {
 // ---------------------------------------------------------------------------
 // DELETE /api/feed/:id — your own post, or anything with the board passphrase
 // ---------------------------------------------------------------------------
-// Two ways in, so the composer can offer "delete" on your own posts without
-// handing every visitor the ability to clear the timeline.
+// Your own, and nothing else.
+//
+// The board passphrase used to grant this as a moderation escape hatch. It no
+// longer does: unlocking the board governs pinning to the two lists, and
+// nothing about it should let one person remove another's writing from the
+// feed. There is deliberately no override — if something has to come off the
+// timeline, it comes off in the database.
 function canRemove(req, row) {
   const claimed = readClientId(req.get('x-client-id'))
-  return (claimed !== null && claimed === row.client_id) || hasBoardPassword(req)
+  return claimed !== null && claimed === row.client_id
 }
 
 feedRouter.delete('/:id', async (req, res) => {

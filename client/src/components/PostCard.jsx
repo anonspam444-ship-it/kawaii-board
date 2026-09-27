@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import Avatar from './Avatar.jsx'
-import EmojiPicker from './EmojiPicker.jsx'
 import RichText from './RichText.jsx'
+import { emojiUrl, moodFor } from '../emoji.js'
 
 const MAX_COMMENT = 300
 
@@ -21,7 +21,7 @@ function when(iso) {
 
 const displayName = (author) => author?.name?.trim() || 'someone'
 
-function Comment({ comment, canModerate, onDelete }) {
+function Comment({ comment, onDelete }) {
   return (
     <li className="comment">
       <Avatar name={displayName(comment.author)} url={comment.author?.avatar_url} size={28} />
@@ -32,7 +32,7 @@ function Comment({ comment, canModerate, onDelete }) {
         </p>
         <RichText className="comment__text" text={comment.body} />
       </div>
-      {(comment.mine || canModerate) && (
+      {comment.mine && (
         <button
           type="button"
           className="comment__delete"
@@ -49,7 +49,6 @@ function Comment({ comment, canModerate, onDelete }) {
 
 export default function PostCard({
   post,
-  canModerate,
   onLike,
   onComment,
   onDeletePost,
@@ -61,30 +60,12 @@ export default function PostCard({
   // of replies — but a post you just commented on keeps them visible.
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
-  const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const replyInput = useRef(null)
 
   const count = post.comments.length
-
-  // Same caret-aware insertion as the composer; see PostComposer for why the
-  // picker fires on mousedown rather than click.
-  function insertEmoji(emoji) {
-    const token = `:${emoji.name}:`
-    const el = replyInput.current
-    const start = el?.selectionStart ?? draft.length
-    const end = el?.selectionEnd ?? start
-    const next = draft.slice(0, start) + token + draft.slice(end)
-
-    if (next.length > MAX_COMMENT) return
-    setDraft(next)
-
-    requestAnimationFrame(() => {
-      el?.focus()
-      el?.setSelectionRange(start + token.length, start + token.length)
-    })
-  }
+  // Unknown or removed feeling names resolve to null and simply don't render.
+  const feeling = moodFor(post.feeling)
 
   async function submitComment(event) {
     event.preventDefault()
@@ -96,7 +77,6 @@ export default function PostCard({
     try {
       await onComment(post.id, text)
       setDraft('')
-      setPicking(false)
     } catch {
       // Feed surfaces the error banner; keep the draft.
     } finally {
@@ -133,7 +113,7 @@ export default function PostCard({
           </p>
         </div>
 
-        {(post.mine || canModerate) &&
+        {post.mine &&
           (confirming ? (
             <span className="post__confirm">
               <button type="button" className="post__danger" onClick={() => onDeletePost(post.id)}>
@@ -157,6 +137,14 @@ export default function PostCard({
       </div>
 
       {post.body && <RichText className="post__body" text={post.body} />}
+
+      {feeling && (
+        <p className="feeling">
+          <span className="feeling__label">Feeling:</span>
+          <span className="feeling__mood">{feeling.mood}</span>
+          <img className="feeling__face" src={emojiUrl(feeling.file)} alt="" />
+        </p>
+      )}
 
       {post.image_url && (
         <a className="post__image" href={post.image_url} target="_blank" rel="noreferrer">
@@ -188,7 +176,6 @@ export default function PostCard({
                 <Comment
                   key={comment.id}
                   comment={comment}
-                  canModerate={canModerate}
                   onDelete={(id) => onDeleteComment(post.id, id)}
                 />
               ))}
@@ -197,7 +184,6 @@ export default function PostCard({
 
           <form className="comment-form" onSubmit={submitComment}>
             <input
-              ref={replyInput}
               className="comment-form__input"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -205,21 +191,10 @@ export default function PostCard({
               maxLength={MAX_COMMENT}
               aria-label="Write a reply"
             />
-            <button
-              type="button"
-              className={`composer__emoji comment-form__emoji${picking ? ' composer__emoji--on' : ''}`}
-              onClick={() => setPicking((v) => !v)}
-              aria-expanded={picking}
-              aria-label="Insert an emoji"
-              title="Insert an emoji"
-            >
-              <span aria-hidden="true">☺</span>
-            </button>
             <button type="submit" className="comment-form__send" disabled={busy || !draft.trim()}>
               {busy ? '…' : 'Reply'}
             </button>
 
-            {picking && <EmojiPicker onPick={insertEmoji} onClose={() => setPicking(false)} />}
           </form>
         </div>
       )}

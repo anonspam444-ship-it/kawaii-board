@@ -160,7 +160,7 @@
   gap: 6px;
 }
 
-.composer__emoji {
+.composer__feeling {
   padding: 7px 12px;
   border: 2px solid #ecdcc2;
   border-radius: 20px;
@@ -173,18 +173,18 @@
   background: #fdf7ec;
 }
 
-.composer__emoji span {
+.composer__feeling span {
   font-size: 1.1rem;
   vertical-align: -1px;
 }
 
-.composer__emoji:hover {
+.composer__feeling:hover {
   border-color: var(--worth-pink);
   color: var(--worth-pink-deep);
 }
 
 /* Held open while the grid is showing, so the button reads as a toggle. */
-.composer__emoji--on {
+.composer__feeling--on {
   border-color: var(--worth-pink);
   color: var(--worth-pink-deep);
   background: #fff1f6;
@@ -629,4 +629,138 @@
   .picker {
     right: 0;
   }
+}
+
+/* Shows the chosen face in the button itself, so the choice is visible without
+   reopening the picker. */
+.composer__feeling {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer__feeling .emoji {
+  width: 1.3em;
+  height: 1.3em;
+  margin: 0;
+  vertical-align: middle;
+}
+
+/* ---- the feeling line on a post ------------------------------------------ */
+/* Modelled on TheSlap: a pale band under the post with the label in small
+   caps and the mood doing the talking. */
+.feeling {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #eaf6ff, #d8ecfb);
+  box-shadow: inset 0 0 0 1px rgba(63, 127, 192, 0.25);
+}
+
+.feeling__label {
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #4a6a86;
+}
+
+.feeling__mood {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #1f6fc4;
+  overflow-wrap: anywhere;
+}
+
+.feeling__face {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+/* ---- the feeling picker -------------------------------------------------- */
+.picker--feeling {
+  width: min(430px, calc(100vw - 40px));
+}
+
+.picker__hint {
+  margin: 2px 0 9px;
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8a5a2b;
+}
+
+.picker__moods {
+  display: grid;
+  /* Wide enough for the longest word ("Embarrassed") without wrapping. */
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--worth-pink) rgba(232, 79, 140, 0.12);
+}
+
+.mood {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  color: #3a2a1c;
+  background: none;
+}
+
+.mood img {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.mood__word {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mood:hover {
+  background: #fff1f6;
+}
+
+.mood--on {
+  border-color: var(--worth-pink);
+  background: #fff1f6;
+  font-weight: 800;
+}
+
+.picker__clear {
+  display: block;
+  margin: 9px 0 0;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: #97795c;
+  background: #f6ecda;
 }

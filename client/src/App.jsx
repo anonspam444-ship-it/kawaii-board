@@ -60,9 +60,15 @@ export default function App() {
   // The visit log lives at #admin and is never linked to. See AdminPanel.
   const [showAdmin, setShowAdmin] = useState(() => location.hash === '#admin')
 
+  // Bumped whenever the notification poll reports activity, which makes the
+  // feed reload — so somebody else's new post appears on its own.
+  const [feedRefresh, setFeedRefresh] = useState(0)
+
   // Paused on the admin screen: it isn't the board, and toasts about the feed
   // sliding over a log you're reading is just in the way.
-  const { toasts, dismiss } = useNotifications(!showAdmin && !isMock)
+  const { toasts, dismiss } = useNotifications(!showAdmin && !isMock, () =>
+    setFeedRefresh((n) => n + 1),
+  )
 
   function load() {
     setLoading(true)
@@ -322,8 +328,8 @@ export default function App() {
         <Feed
           name={name}
           avatarUrl={avatarUrl}
-          canModerate={unlocked}
           onNeedName={() => setPrompt('required')}
+          refresh={feedRefresh}
         />
       </div>
 

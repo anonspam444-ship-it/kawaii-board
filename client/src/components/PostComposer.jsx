@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import Avatar from './Avatar.jsx'
-import EmojiPicker from './EmojiPicker.jsx'
+import FeelingPicker from './FeelingPicker.jsx'
+import { emojiUrl, moodFor } from '../emoji.js'
 import { toBoundedDataUrl } from '../lib/image.js'
 
 const MAX_BODY = 500
@@ -10,35 +11,16 @@ const MAX_BODY = 500
 export default function PostComposer({ name, avatarUrl, onPost, onNeedName }) {
   const [body, setBody] = useState('')
   const [image, setImage] = useState(null) // data URL, already resized
+  const [feeling, setFeeling] = useState(null) // emoji name, or null
   const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const fileInput = useRef(null)
-  const textarea = useRef(null)
 
+  const chosen = moodFor(feeling)
   const text = body.trim()
-  const canSend = Boolean(text || image) && !busy
+  const canSend = Boolean(text || image || feeling) && !busy
   const left = MAX_BODY - body.length
-
-  // Drops the shortcode in at the caret rather than appending, and puts the
-  // caret after it so you can keep typing. The textarea's maxLength only
-  // constrains typing, so the cap is enforced here too.
-  function insertEmoji(emoji) {
-    const token = `:${emoji.name}:`
-    const el = textarea.current
-    const start = el?.selectionStart ?? body.length
-    const end = el?.selectionEnd ?? start
-    const next = body.slice(0, start) + token + body.slice(end)
-
-    if (next.length > MAX_BODY) return
-    setBody(next)
-
-    // After React has re-rendered with the new value, put the caret back.
-    requestAnimationFrame(() => {
-      el?.focus()
-      el?.setSelectionRange(start + token.length, start + token.length)
-    })
-  }
 
   async function pick(event) {
     const file = event.target.files?.[0]
@@ -64,9 +46,10 @@ export default function PostComposer({ name, avatarUrl, onPost, onNeedName }) {
     setBusy(true)
     setError(null)
     try {
-      await onPost({ body: text, image })
+      await onPost({ body: text, image, feeling })
       setBody('')
       setImage(null)
+      setFeeling(null)
       setPicking(false)
     } catch (e) {
       setError(e.message) // keep the draft so it can be retried
@@ -81,7 +64,6 @@ export default function PostComposer({ name, avatarUrl, onPost, onNeedName }) {
 
       <div className="composer__main">
         <textarea
-          ref={textarea}
           className="composer__input"
           value={body}
           onChange={(e) => setBody(e.target.value)}
@@ -112,12 +94,21 @@ export default function PostComposer({ name, avatarUrl, onPost, onNeedName }) {
           <div className="composer__tools">
             <button
               type="button"
-              className={`composer__emoji${picking ? ' composer__emoji--on' : ''}`}
+              className={`composer__feeling${picking ? ' composer__feeling--on' : ''}`}
               onClick={() => setPicking((v) => !v)}
               aria-expanded={picking}
-              title="Insert an emoji"
+              title="Set how you're feeling"
             >
-              <span aria-hidden="true">☺</span> Emoji
+              {chosen ? (
+                <>
+                  <img className="emoji" src={emojiUrl(chosen.file)} alt="" />
+                  {chosen.mood}
+                </>
+              ) : (
+                <>
+                  <span aria-hidden="true">☺</span> Feeling
+                </>
+              )}
             </button>
 
             <button
@@ -152,7 +143,18 @@ export default function PostComposer({ name, avatarUrl, onPost, onNeedName }) {
         </div>
 
         {picking && (
-          <EmojiPicker onPick={insertEmoji} onClose={() => setPicking(false)} />
+          <FeelingPicker
+            selected={feeling}
+            onPick={(name) => {
+              setFeeling(name)
+              setPicking(false)
+            }}
+            onClear={() => {
+              setFeeling(null)
+              setPicking(false)
+            }}
+            onClose={() => setPicking(false)}
+          />
         )}
       </div>
     </form>
