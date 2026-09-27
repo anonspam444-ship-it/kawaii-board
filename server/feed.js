@@ -16,10 +16,28 @@ export const feedRouter = express.Router()
 export const MAX_BODY = 500
 export const MAX_COMMENT = 300
 
-// Feelings are stored as the emoji key. The server doesn't hold the list —
-// that lives in the client, which is the only place that needs to render it —
-// so this only checks the shape. An unknown key renders as no feeling.
+// A feeling is an emoji plus a few words the poster typed. Either half can
+// stand alone.
+//
+// The emoji is stored as its key. The server doesn't hold the list — that
+// lives in the client, which is the only place that needs to render it — so
+// this only checks the shape. An unknown key renders as no face.
 const FEELING = /^[a-z][a-z0-9-]{0,23}$/
+
+// Short on purpose: this is a mood, not a second post body. It sits on one
+// line next to the face and has to stay readable there.
+export const MAX_FEELING_TEXT = 40
+
+function readFeelingText(value) {
+  if (value === undefined || value === null) return { value: null }
+  if (typeof value !== 'string') return { error: 'feeling text must be text' }
+  const trimmed = value.trim().replace(/\s+/g, ' ')
+  if (!trimmed) return { value: null }
+  if (trimmed.length > MAX_FEELING_TEXT) {
+    return { error: `feeling must be ${MAX_FEELING_TEXT} characters or fewer` }
+  }
+  return { value: trimmed }
+}
 
 function readFeeling(value) {
   if (value === undefined || value === null || value === '') return { value: null }
@@ -67,7 +85,7 @@ feedRouter.get('/', async (req, res) => {
   const { data: posts, error } = await supabase
     .from('posts')
     .select(
-      'id, client_id, body, image_url, feeling, created_at, ' +
+      'id, client_id, body, image_url, feeling, feeling_text, created_at, ' +
         'post_likes ( client_id ), ' +
         'post_comments ( id, client_id, body, created_at )',
     )
@@ -116,6 +134,7 @@ feedRouter.get('/', async (req, res) => {
       body: post.body,
       image_url: post.image_url,
       feeling: post.feeling,
+      feeling_text: post.feeling_text,
       created_at: post.created_at,
       author: author(post.client_id),
       likes: post.post_likes.length,
@@ -142,7 +161,7 @@ feedRouter.get('/', async (req, res) => {
 // POST /api/feed — { client_id, body, image } → created post
 // ---------------------------------------------------------------------------
 feedRouter.post('/', postLimit, jsonWithImage, async (req, res) => {
-  const { client_id: rawClientId, body, image, feeling } = req.body ?? {}
+  const { client_id: rawClientId, body, image, feeling, feeling_text: feelingText } = req.body ?? {}
 
   const clientId = readClientId(rawClientId)
   if (!clientId) return res.status(400).json({ error: 'client_id must be a uuid' })
@@ -155,9 +174,12 @@ feedRouter.post('/', postLimit, jsonWithImage, async (req, res) => {
   const mood = readFeeling(feeling)
   if (mood.error) return res.status(400).json({ error: mood.error })
 
-  // Checked against the cleaned value: "   " as a feeling is absence, not
+  const moodText = readFeelingText(feelingText)
+  if (moodText.error) return res.status(400).json({ error: moodText.error })
+
+  // Checked against the cleaned values: "   " as a feeling is absence, not
   // content, and letting it through would hit the database constraint instead.
-  if (!text && !image && !mood.value) {
+  if (!text && !image && !mood.value && !moodText.value) {
     return res.status(400).json({ error: 'a post needs some text, a picture or a feeling' })
   }
 
@@ -170,7 +192,13 @@ feedRouter.post('/', postLimit, jsonWithImage, async (req, res) => {
 
   const { data, error } = await supabase
     .from('posts')
-    .insert({ client_id: clientId, body: text, image_url: imageUrl, feeling: mood.value })
+    .insert({
+      client_id: clientId,
+      body: text,
+      image_url: imageUrl,
+      feeling: mood.value,
+      feeling_text: moodText.value,
+    })
     .select()
     .single()
 

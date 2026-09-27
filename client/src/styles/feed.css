@@ -688,7 +688,7 @@
 
 /* ---- the feeling picker -------------------------------------------------- */
 .picker--feeling {
-  width: min(452px, calc(100vw - 40px));
+  width: min(360px, calc(100vw - 40px));
 }
 
 .picker__hint {
@@ -701,56 +701,82 @@
   color: #8a5a2b;
 }
 
-.picker__moods {
-  display: grid;
-  /* Wide enough for the longest word ("Embarrassed") without truncating:
-     ~26px face + gap + 11 characters at 0.88rem. 112px clipped it. */
-  grid-template-columns: repeat(auto-fill, minmax(134px, 1fr));
-  gap: 4px;
-  max-height: 260px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--worth-pink) rgba(232, 79, 140, 0.12);
+/* The currently chosen face, so reopening the picker shows where you are. */
+.picker__item--on {
+  background: #fff1f6;
+  box-shadow: inset 0 0 0 2px var(--worth-pink);
 }
 
-.mood {
+/* ---- typing the feeling -------------------------------------------------- */
+/* Its own row in the composer, so it reads as a separate field rather than a
+   continuation of the post box. */
+.feeling-input {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 8px;
-  border: 2px solid transparent;
-  border-radius: 9px;
-  font-family: inherit;
-  font-size: 0.88rem;
-  text-align: left;
-  cursor: pointer;
-  color: #3a2a1c;
-  background: none;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #eaf6ff, #dcefFB);
+  box-shadow: inset 0 0 0 1px rgba(63, 127, 192, 0.25);
 }
 
-.mood img {
+.feeling-input__label {
+  flex: 0 0 auto;
+  font-family: 'Baloo 2', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #4a6a86;
+}
+
+.feeling-input__face {
   flex: 0 0 auto;
   width: 26px;
   height: 26px;
   object-fit: contain;
-  pointer-events: none;
 }
 
-.mood__word {
+.feeling-input__field {
+  flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mood:hover {
-  background: #fff1f6;
-}
-
-.mood--on {
-  border-color: var(--worth-pink);
-  background: #fff1f6;
+  padding: 4px 2px;
+  border: none;
+  border-bottom: 2px solid rgba(63, 127, 192, 0.3);
+  font-family: 'Baloo 2', system-ui, sans-serif;
   font-weight: 800;
+  font-size: 1rem;
+  color: #1f6fc4;
+  background: none;
+}
+
+.feeling-input__field::placeholder {
+  font-weight: 600;
+  color: #8fb2d0;
+}
+
+.feeling-input__field:focus {
+  outline: none;
+  border-bottom-color: #1f6fc4;
+}
+
+.feeling-input__drop {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #4a6a86;
+  background: none;
+  opacity: 0.6;
+}
+
+.feeling-input__drop:hover {
+  opacity: 1;
+  background: rgba(63, 127, 192, 0.14);
 }
 
 .picker__clear {

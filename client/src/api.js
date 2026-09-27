@@ -208,7 +208,7 @@ export const getFeed = () =>
     ? []
     : request(`/api/feed?client_id=${encodeURIComponent(getClientId())}`, { auth: 'none' })
 
-export const createPost = ({ body, image, feeling }) =>
+export const createPost = ({ body, image, feeling, feelingText }) =>
   request('/api/feed', {
     auth: 'none',
     method: 'POST',
@@ -217,6 +217,7 @@ export const createPost = ({ body, image, feeling }) =>
       body,
       ...(image ? { image } : {}),
       ...(feeling ? { feeling } : {}),
+      ...(feelingText ? { feeling_text: feelingText } : {}),
     }),
   })
 

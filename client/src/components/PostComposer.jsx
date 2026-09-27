@@ -12,6 +12,7 @@ export default function PostComposer({ name, avatarUrl, onPost, onNeedName }) {
   const [body, setBody] = useState('')
   const [image, setImage] = useState(null) // data URL, already resized
   const [feeling, setFeeling] = useState(null) // emoji name, or null
+  const [feelingText, setFeelingText] = useState('')
   const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -19,7 +20,8 @@ export default function PostComposer({ name, avatarUrl, onPost, onNeedName }) {
 
   const chosen = moodFor(feeling)
   const text = body.trim()
-  const canSend = Boolean(text || image || feeling) && !busy
+  const mood = feelingText.trim()
+  const canSend = Boolean(text || image || feeling || mood) && !busy
   const left = MAX_BODY - body.length
 
   async function pick(event) {
@@ -46,10 +48,11 @@ export default function PostComposer({ name, avatarUrl, onPost, onNeedName }) {
     setBusy(true)
     setError(null)
     try {
-      await onPost({ body: text, image, feeling })
+      await onPost({ body: text, image, feeling, feelingText: mood })
       setBody('')
       setImage(null)
       setFeeling(null)
+      setFeelingText('')
       setPicking(false)
     } catch (e) {
       setError(e.message) // keep the draft so it can be retried
@@ -88,6 +91,37 @@ export default function PostComposer({ name, avatarUrl, onPost, onNeedName }) {
           </div>
         )}
 
+        {(chosen || mood) && (
+          <div className="feeling-input">
+            <label className="feeling-input__label" htmlFor="feeling-text">
+              Feeling
+            </label>
+            {chosen && (
+              <img className="feeling-input__face" src={emojiUrl(chosen.file)} alt={chosen.mood} />
+            )}
+            <input
+              id="feeling-text"
+              className="feeling-input__field"
+              value={feelingText}
+              onChange={(e) => setFeelingText(e.target.value)}
+              placeholder="how are you feeling?"
+              maxLength={40}
+            />
+            <button
+              type="button"
+              className="feeling-input__drop"
+              onClick={() => {
+                setFeeling(null)
+                setFeelingText('')
+              }}
+              aria-label="Remove feeling"
+              title="Remove feeling"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {error && <p className="composer__error">{error}</p>}
 
         <div className="composer__toolbar">
@@ -100,10 +134,7 @@ export default function PostComposer({ name, avatarUrl, onPost, onNeedName }) {
               title="Set how you're feeling"
             >
               {chosen ? (
-                <>
-                  <img className="emoji" src={emojiUrl(chosen.file)} alt="" />
-                  {chosen.mood}
-                </>
+                <img className="emoji" src={emojiUrl(chosen.file)} alt={chosen.mood} />
               ) : (
                 <>
                   <span aria-hidden="true">☺</span> Feeling

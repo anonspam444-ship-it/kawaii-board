@@ -34,8 +34,8 @@ export default function Feed({ name, avatarUrl, onNeedName, refresh = 0 }) {
   // from someone else appears without anyone hitting reload.
   useEffect(load, [refresh])
 
-  async function handlePost({ body, image }) {
-    const created = await createPost({ body, image })
+  async function handlePost({ body, image, feeling, feelingText }) {
+    const created = await createPost({ body, image, feeling, feelingText })
     // The server doesn't echo the author back (the browser already knows who it
     // is), so it's filled in here to avoid a refetch just to render one card.
     setPosts((prev) => [

@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { EMOJI, emojiUrl } from '../emoji.js'
 
-// Pick one feeling for the post. Unlike the old inline picker, this doesn't
-// insert anything into the text — the choice is a property of the post, shown
-// on its own line underneath, the way TheSlap did it.
+// Just the faces. The words used to come from a fixed list here; they're typed
+// by the poster now, in the field the composer shows once a face is chosen.
+// `mood` survives in emoji.js only as a label for the tooltip and alt text.
 export default function FeelingPicker({ selected, onPick, onClear, onClose }) {
   const box = useRef(null)
 
@@ -25,27 +25,28 @@ export default function FeelingPicker({ selected, onPick, onClear, onClose }) {
   }, [onClose])
 
   return (
-    <div className="picker picker--feeling" ref={box} role="dialog" aria-label="Choose a feeling">
-      <p className="picker__hint">How are you feeling?</p>
+    <div className="picker picker--feeling" ref={box} role="dialog" aria-label="Choose a face">
+      <p className="picker__hint">Pick a face</p>
 
-      <div className="picker__moods">
+      <div className="picker__grid">
         {EMOJI.map((emoji) => (
           <button
             key={emoji.name}
             type="button"
-            className={`mood${selected === emoji.name ? ' mood--on' : ''}`}
+            className={`picker__item${selected === emoji.name ? ' picker__item--on' : ''}`}
             onClick={() => onPick(emoji.name)}
             aria-pressed={selected === emoji.name}
+            title={emoji.mood}
+            aria-label={emoji.mood}
           >
             <img src={emojiUrl(emoji.file)} alt="" loading="lazy" draggable={false} />
-            <span className="mood__word">{emoji.mood}</span>
           </button>
         ))}
       </div>
 
       {selected && (
         <button type="button" className="picker__clear" onClick={onClear}>
-          No feeling
+          No face
         </button>
       )}
     </div>

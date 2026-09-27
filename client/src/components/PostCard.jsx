@@ -64,8 +64,11 @@ export default function PostCard({
   const [confirming, setConfirming] = useState(false)
 
   const count = post.comments.length
-  // Unknown or removed feeling names resolve to null and simply don't render.
-  const feeling = moodFor(post.feeling)
+  // Unknown or removed emoji keys resolve to null and simply don't render.
+  const face = moodFor(post.feeling)
+  const said = post.feeling_text?.trim()
+  // Either half is enough to show the line; neither means no line at all.
+  const hasFeeling = Boolean(face || said)
 
   async function submitComment(event) {
     event.preventDefault()
@@ -138,11 +141,16 @@ export default function PostCard({
 
       {post.body && <RichText className="post__body" text={post.body} />}
 
-      {feeling && (
+      {hasFeeling && (
         <p className="feeling">
           <span className="feeling__label">Feeling:</span>
-          <span className="feeling__mood">{feeling.mood}</span>
-          <img className="feeling__face" src={emojiUrl(feeling.file)} alt="" />
+          {/* Their words, not a preset. Omitted entirely rather than rendered
+              empty when they only picked a face — an empty flex: 1 span would
+              shove the emoji to the far edge with nothing in between. */}
+          {said && <span className="feeling__mood">{said}</span>}
+          {face && (
+            <img className="feeling__face" src={emojiUrl(face.file)} alt={face.mood} />
+          )}
         </p>
       )}
 
