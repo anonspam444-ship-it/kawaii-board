@@ -688,7 +688,7 @@
 
 /* ---- the feeling picker -------------------------------------------------- */
 .picker--feeling {
-  width: min(430px, calc(100vw - 40px));
+  width: min(452px, calc(100vw - 40px));
 }
 
 .picker__hint {
@@ -703,8 +703,9 @@
 
 .picker__moods {
   display: grid;
-  /* Wide enough for the longest word ("Embarrassed") without wrapping. */
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  /* Wide enough for the longest word ("Embarrassed") without truncating:
+     ~26px face + gap + 11 characters at 0.88rem. 112px clipped it. */
+  grid-template-columns: repeat(auto-fill, minmax(134px, 1fr));
   gap: 4px;
   max-height: 260px;
   overflow-y: auto;
