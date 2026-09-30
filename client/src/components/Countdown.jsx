@@ -15,7 +15,7 @@ import '../styles/countdown.css'
 // Midnight opening the 6th of October, in whatever timezone the browser is in.
 // "October 6th, 12am" was given without a zone, so local is the reading that
 // matches the clock on the wall; month is 0-indexed, hence 9.
-const RELEASE = new Date(2026, 9, 6, 0, 0, 0, 0)
+const RELEASE = new Date(2026, 9, 6, 14, 0, 0, 0)
 
 // How far back the EXP bar starts filling from. Purely cosmetic: a bar that
 // only moves in the last month actually visibly moves.
